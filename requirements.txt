@@ -1,0 +1,7 @@
+nidaqmx==1.6.0
+logic2-automation==1.0.11
+python-can==4.6.1
+cantools==43.0.0
+numpy==2.5.2
+pybamm==26.8.0.0
+flask==3.1.2

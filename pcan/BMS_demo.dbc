@@ -1,0 +1,453 @@
+VERSION "BMS_demo v0.6"
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_:
+
+BU_: S32K344_BMS PCAN
+
+
+BO_ 512 BMS_DebugCommand: 1 PCAN
+ SG_ DebugCommand : 0|8@1+ (1,0) [0|255] "" S32K344_BMS
+
+BO_ 513 BMS_ControlCommand: 1 PCAN
+ SG_ ControlCommand : 0|8@1+ (1,0) [0|3] "" S32K344_BMS
+
+
+BO_ 768 BMS_Status: 8 S32K344_BMS
+ SG_ BMS_State : 0|8@1+ (1,0) [0|3] "" PCAN
+ SG_ Pack1_Temperature : 8|16@1- (0.1,0) [-100|200] "degC" PCAN
+ SG_ Pack2_Temperature : 24|16@1- (0.1,0) [-100|200] "degC" PCAN
+ SG_ Pack3_Temperature : 40|16@1- (0.1,0) [-100|200] "degC" PCAN
+ SG_ CriticalFault : 56|1@1+ (1,0) [0|1] "" PCAN
+ SG_ AnyFault : 57|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1TempValid : 58|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2TempValid : 59|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3TempValid : 60|1@1+ (1,0) [0|1] "" PCAN
+
+
+BO_ 769 BMS_PackStatus: 8 S32K344_BMS
+ SG_ Pack1Voltage : 0|16@1+ (0.1,0) [0|6553.5] "V" PCAN
+ SG_ Pack2Voltage : 16|16@1+ (0.1,0) [0|6553.5] "V" PCAN
+ SG_ Pack3Voltage : 32|16@1+ (0.1,0) [0|6553.5] "V" PCAN
+ SG_ BatteryMonitorStatus : 48|4@1+ (1,0) [0|15] "" PCAN
+ SG_ PackStatusAliveCounter : 52|4@1+ (1,0) [0|15] "" PCAN
+ SG_ PackVoltageValid : 56|1@1+ (1,0) [0|1] "" PCAN
+
+
+BO_ 770 BMS_ContactorStatus: 8 S32K344_BMS
+ SG_ Pack1ContactorState : 0|8@1+ (1,0) [0|6] "" PCAN
+ SG_ Pack2ContactorState : 8|8@1+ (1,0) [0|6] "" PCAN
+ SG_ Pack3ContactorState : 16|8@1+ (1,0) [0|6] "" PCAN
+
+ SG_ Pack1NegativeContactor : 24|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1PositiveContactor : 25|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1PrechargeContactor : 26|1@1+ (1,0) [0|1] "" PCAN
+
+ SG_ Pack2NegativeContactor : 32|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2PositiveContactor : 33|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2PrechargeContactor : 34|1@1+ (1,0) [0|1] "" PCAN
+
+ SG_ Pack3NegativeContactor : 40|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3PositiveContactor : 41|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3PrechargeContactor : 42|1@1+ (1,0) [0|1] "" PCAN
+
+ SG_ ContactorAliveCounter : 48|4@1+ (1,0) [0|15] "" PCAN
+
+
+BO_ 771 BMS_Pack12Fault: 8 S32K344_BMS
+ SG_ Pack1FaultMask : 0|32@1+ (1,0) [0|4294967295] "" PCAN
+ SG_ Pack2FaultMask : 32|32@1+ (1,0) [0|4294967295] "" PCAN
+
+ SG_ Pack1_PackOV : 0|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_PackUV : 1|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_CellOV : 2|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_CellUV : 3|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_OverTemp : 4|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_UnderTemp : 5|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_AfeComm : 6|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_CanTimeout : 7|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_SpiTimeout : 8|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_PrechargeTimeout : 9|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_ContactorFeedback : 10|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_ContactorWeld : 11|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_OverCurrent : 12|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_TempSensor : 13|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack1_TempDelta : 14|1@1+ (1,0) [0|1] "" PCAN
+
+ SG_ Pack2_PackOV : 32|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_PackUV : 33|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_CellOV : 34|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_CellUV : 35|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_OverTemp : 36|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_UnderTemp : 37|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_AfeComm : 38|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_CanTimeout : 39|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_SpiTimeout : 40|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_PrechargeTimeout : 41|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_ContactorFeedback : 42|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_ContactorWeld : 43|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_OverCurrent : 44|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_TempSensor : 45|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack2_TempDelta : 46|1@1+ (1,0) [0|1] "" PCAN
+
+
+BO_ 772 BMS_Pack3SystemFault: 8 S32K344_BMS
+ SG_ Pack3FaultMask : 0|32@1+ (1,0) [0|4294967295] "" PCAN
+ SG_ SystemFaultMask : 32|32@1+ (1,0) [0|4294967295] "" PCAN
+
+ SG_ Pack3_PackOV : 0|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_PackUV : 1|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_CellOV : 2|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_CellUV : 3|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_OverTemp : 4|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_UnderTemp : 5|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_AfeComm : 6|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_CanTimeout : 7|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_SpiTimeout : 8|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_PrechargeTimeout : 9|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_ContactorFeedback : 10|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_ContactorWeld : 11|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_OverCurrent : 12|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_TempSensor : 13|1@1+ (1,0) [0|1] "" PCAN
+ SG_ Pack3_TempDelta : 14|1@1+ (1,0) [0|1] "" PCAN
+
+ SG_ System_PackOV : 32|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_PackUV : 33|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_CellOV : 34|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_CellUV : 35|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_OverTemp : 36|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_UnderTemp : 37|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_AfeComm : 38|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_CanTimeout : 39|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_SpiTimeout : 40|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_PrechargeTimeout : 41|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_ContactorFeedback : 42|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_ContactorWeld : 43|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_OverCurrent : 44|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_TempSensor : 45|1@1+ (1,0) [0|1] "" PCAN
+ SG_ System_TempDelta : 46|1@1+ (1,0) [0|1] "" PCAN
+
+
+VAL_ 512 DebugCommand
+ 0 "NOP"
+ 1 "LED2_On"
+ 2 "LED2_Off"
+ 3 "Reset_Rx_Count";
+
+VAL_ 513 ControlCommand
+ 0 "NOP"
+ 1 "Enable"
+ 2 "Disable"
+ 3 "ClearFault";
+
+
+VAL_ 768 BMS_State
+ 0 "INIT"
+ 1 "STANDBY"
+ 2 "ACTIVE"
+ 3 "FAULT";
+
+VAL_ 768 CriticalFault
+ 0 "No"
+ 1 "Yes";
+
+VAL_ 768 AnyFault
+ 0 "No"
+ 1 "Yes";
+
+VAL_ 768 Pack1TempValid
+ 0 "Invalid"
+ 1 "Valid";
+
+VAL_ 768 Pack2TempValid
+ 0 "Invalid"
+ 1 "Valid";
+
+VAL_ 768 Pack3TempValid
+ 0 "Invalid"
+ 1 "Valid";
+
+
+VAL_ 769 BatteryMonitorStatus
+ 0 "OK"
+ 1 "INVALID"
+ 2 "OVER_VOLTAGE"
+ 3 "UNDER_VOLTAGE"
+ 4 "VOLTAGE_MISMATCH";
+
+VAL_ 769 PackVoltageValid
+ 0 "Invalid"
+ 1 "Valid";
+
+
+VAL_ 770 Pack1ContactorState
+ 0 "OFF"
+ 1 "NEG_ON"
+ 2 "PRECHARGE"
+ 3 "POS_ON"
+ 4 "RUN"
+ 5 "OPENING"
+ 6 "FAULT";
+
+VAL_ 770 Pack2ContactorState
+ 0 "OFF"
+ 1 "NEG_ON"
+ 2 "PRECHARGE"
+ 3 "POS_ON"
+ 4 "RUN"
+ 5 "OPENING"
+ 6 "FAULT";
+
+VAL_ 770 Pack3ContactorState
+ 0 "OFF"
+ 1 "NEG_ON"
+ 2 "PRECHARGE"
+ 3 "POS_ON"
+ 4 "RUN"
+ 5 "OPENING"
+ 6 "FAULT";
+
+
+VAL_ 770 Pack1NegativeContactor 0 "Off" 1 "On";
+VAL_ 770 Pack1PositiveContactor 0 "Off" 1 "On";
+VAL_ 770 Pack1PrechargeContactor 0 "Off" 1 "On";
+
+VAL_ 770 Pack2NegativeContactor 0 "Off" 1 "On";
+VAL_ 770 Pack2PositiveContactor 0 "Off" 1 "On";
+VAL_ 770 Pack2PrechargeContactor 0 "Off" 1 "On";
+
+VAL_ 770 Pack3NegativeContactor 0 "Off" 1 "On";
+VAL_ 770 Pack3PositiveContactor 0 "Off" 1 "On";
+VAL_ 770 Pack3PrechargeContactor 0 "Off" 1 "On";
+
+
+VAL_ 771 Pack1_PackOV 0 "No" 1 "Yes";
+VAL_ 771 Pack1_PackUV 0 "No" 1 "Yes";
+VAL_ 771 Pack1_CellOV 0 "No" 1 "Yes";
+VAL_ 771 Pack1_CellUV 0 "No" 1 "Yes";
+VAL_ 771 Pack1_OverTemp 0 "No" 1 "Yes";
+VAL_ 771 Pack1_UnderTemp 0 "No" 1 "Yes";
+VAL_ 771 Pack1_AfeComm 0 "No" 1 "Yes";
+VAL_ 771 Pack1_CanTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack1_SpiTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack1_PrechargeTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack1_ContactorFeedback 0 "No" 1 "Yes";
+VAL_ 771 Pack1_ContactorWeld 0 "No" 1 "Yes";
+VAL_ 771 Pack1_OverCurrent 0 "No" 1 "Yes";
+VAL_ 771 Pack1_TempSensor 0 "No" 1 "Yes";
+VAL_ 771 Pack1_TempDelta 0 "No" 1 "Yes";
+
+VAL_ 771 Pack2_PackOV 0 "No" 1 "Yes";
+VAL_ 771 Pack2_PackUV 0 "No" 1 "Yes";
+VAL_ 771 Pack2_CellOV 0 "No" 1 "Yes";
+VAL_ 771 Pack2_CellUV 0 "No" 1 "Yes";
+VAL_ 771 Pack2_OverTemp 0 "No" 1 "Yes";
+VAL_ 771 Pack2_UnderTemp 0 "No" 1 "Yes";
+VAL_ 771 Pack2_AfeComm 0 "No" 1 "Yes";
+VAL_ 771 Pack2_CanTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack2_SpiTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack2_PrechargeTimeout 0 "No" 1 "Yes";
+VAL_ 771 Pack2_ContactorFeedback 0 "No" 1 "Yes";
+VAL_ 771 Pack2_ContactorWeld 0 "No" 1 "Yes";
+VAL_ 771 Pack2_OverCurrent 0 "No" 1 "Yes";
+VAL_ 771 Pack2_TempSensor 0 "No" 1 "Yes";
+VAL_ 771 Pack2_TempDelta 0 "No" 1 "Yes";
+
+
+VAL_ 772 Pack3_PackOV 0 "No" 1 "Yes";
+VAL_ 772 Pack3_PackUV 0 "No" 1 "Yes";
+VAL_ 772 Pack3_CellOV 0 "No" 1 "Yes";
+VAL_ 772 Pack3_CellUV 0 "No" 1 "Yes";
+VAL_ 772 Pack3_OverTemp 0 "No" 1 "Yes";
+VAL_ 772 Pack3_UnderTemp 0 "No" 1 "Yes";
+VAL_ 772 Pack3_AfeComm 0 "No" 1 "Yes";
+VAL_ 772 Pack3_CanTimeout 0 "No" 1 "Yes";
+VAL_ 772 Pack3_SpiTimeout 0 "No" 1 "Yes";
+VAL_ 772 Pack3_PrechargeTimeout 0 "No" 1 "Yes";
+VAL_ 772 Pack3_ContactorFeedback 0 "No" 1 "Yes";
+VAL_ 772 Pack3_ContactorWeld 0 "No" 1 "Yes";
+VAL_ 772 Pack3_OverCurrent 0 "No" 1 "Yes";
+VAL_ 772 Pack3_TempSensor 0 "No" 1 "Yes";
+VAL_ 772 Pack3_TempDelta 0 "No" 1 "Yes";
+
+VAL_ 772 System_PackOV 0 "No" 1 "Yes";
+VAL_ 772 System_PackUV 0 "No" 1 "Yes";
+VAL_ 772 System_CellOV 0 "No" 1 "Yes";
+VAL_ 772 System_CellUV 0 "No" 1 "Yes";
+VAL_ 772 System_OverTemp 0 "No" 1 "Yes";
+VAL_ 772 System_UnderTemp 0 "No" 1 "Yes";
+VAL_ 772 System_AfeComm 0 "No" 1 "Yes";
+VAL_ 772 System_CanTimeout 0 "No" 1 "Yes";
+VAL_ 772 System_SpiTimeout 0 "No" 1 "Yes";
+VAL_ 772 System_PrechargeTimeout 0 "No" 1 "Yes";
+VAL_ 772 System_ContactorFeedback 0 "No" 1 "Yes";
+VAL_ 772 System_ContactorWeld 0 "No" 1 "Yes";
+VAL_ 772 System_OverCurrent 0 "No" 1 "Yes";
+VAL_ 772 System_TempSensor 0 "No" 1 "Yes";
+VAL_ 772 System_TempDelta 0 "No" 1 "Yes";
+
+
+CM_ BO_ 512
+ "Debug command frame. CAN ID 0x200.";
+
+CM_ BO_ 513
+ "BMS control command frame. CAN ID 0x201.";
+
+
+CM_ BO_ 768
+ "BMS general status frame. CAN ID 0x300.";
+
+CM_ SG_ 768 Pack1_Temperature
+ "Pack 1 NTC temperature. Signed 16-bit little-endian, 0.1 degC/bit.";
+
+CM_ SG_ 768 Pack2_Temperature
+ "Pack 2 NTC temperature. Signed 16-bit little-endian, 0.1 degC/bit.";
+
+CM_ SG_ 768 Pack3_Temperature
+ "Pack 3 NTC temperature. Signed 16-bit little-endian, 0.1 degC/bit.";
+
+CM_ SG_ 768 CriticalFault
+ "1 when a critical fault is active.";
+
+CM_ SG_ 768 AnyFault
+ "1 when any BMS fault is active.";
+
+
+CM_ BO_ 769
+ "Pack voltage and Battery Monitor status frame. CAN ID 0x301.";
+
+CM_ SG_ 769 Pack1Voltage
+ "Pack 1 voltage. Unsigned 16-bit little-endian, 0.1 V/bit.";
+
+CM_ SG_ 769 Pack2Voltage
+ "Pack 2 voltage. Unsigned 16-bit little-endian, 0.1 V/bit.";
+
+CM_ SG_ 769 Pack3Voltage
+ "Pack 3 voltage. Unsigned 16-bit little-endian, 0.1 V/bit.";
+
+CM_ SG_ 769 BatteryMonitorStatus
+ "BatteryMonitor status in byte 6 bits 0-3.";
+
+CM_ SG_ 769 PackStatusAliveCounter
+ "4-bit rolling alive counter in byte 6 bits 4-7.";
+
+CM_ SG_ 769 PackVoltageValid
+ "Overall pack voltage validity in byte 7 bit 0.";
+
+
+CM_ BO_ 770
+ "Three-pack contactor status frame. CAN ID 0x302.";
+
+CM_ SG_ 770 ContactorAliveCounter
+ "4-bit rolling alive counter in byte 6 bits 0-3.";
+
+
+CM_ BO_ 771
+ "Pack 1 and Pack 2 fault masks. CAN ID 0x303. Bytes 0-3 = Pack1FaultMask, bytes 4-7 = Pack2FaultMask.";
+
+CM_ SG_ 771 Pack1FaultMask
+ "Raw 32-bit Pack 1 fault mask, little-endian.";
+
+CM_ SG_ 771 Pack2FaultMask
+ "Raw 32-bit Pack 2 fault mask, little-endian.";
+
+
+CM_ BO_ 772
+ "Pack 3 and System fault masks. CAN ID 0x304. Bytes 0-3 = Pack3FaultMask, bytes 4-7 = SystemFaultMask.";
+
+CM_ SG_ 772 Pack3FaultMask
+ "Raw 32-bit Pack 3 fault mask, little-endian.";
+
+CM_ SG_ 772 SystemFaultMask
+ "Raw 32-bit System fault mask, little-endian.";
+
+BO_ 1024 vAFE_TestTx: 8 S32K344_BMS
+ SG_ vAFE_TestByte0 : 0|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte1 : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte2 : 16|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte3 : 24|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte4 : 32|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte5 : 40|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte6 : 48|8@1+ (1,0) [0|255] "" PCAN
+ SG_ vAFE_TestByte7 : 56|8@1+ (1,0) [0|255] "" PCAN
+
+
+BO_ 1025 vAFE_CellVoltage_1_4: 8 vAFE
+ SG_ Cell1Voltage : 0|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell2Voltage : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell3Voltage : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell4Voltage : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+
+BO_ 1026 vAFE_CellVoltage_5_8: 8 vAFE
+ SG_ Cell5Voltage : 0|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell6Voltage : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell7Voltage : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell8Voltage : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+
+BO_ 1027 vAFE_CellVoltage_9_12: 8 vAFE
+ SG_ Cell9Voltage  : 0|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell10Voltage : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell11Voltage : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell12Voltage : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+
+BO_ 1028 vAFE_CellVoltage_13_16: 8 vAFE
+ SG_ Cell13Voltage : 0|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell14Voltage : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell15Voltage : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell16Voltage : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+ BO_ 1025 vAFE_CellVoltage_1_4: 8 vAFE
+ SG_ Cell1Voltage  : 0|16@1+  (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell2Voltage  : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell3Voltage  : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell4Voltage  : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+BO_ 1026 vAFE_CellVoltage_5_8: 8 vAFE
+ SG_ Cell5Voltage  : 0|16@1+  (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell6Voltage  : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell7Voltage  : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell8Voltage  : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+BO_ 1027 vAFE_CellVoltage_9_12: 8 vAFE
+ SG_ Cell9Voltage   : 0|16@1+  (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell10Voltage  : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell11Voltage  : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell12Voltage  : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+
+BO_ 1028 vAFE_CellVoltage_13_16: 8 vAFE
+ SG_ Cell13Voltage  : 0|16@1+  (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell14Voltage  : 16|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell15Voltage  : 32|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS
+ SG_ Cell16Voltage  : 48|16@1+ (0.001,0) [0|6.5535] "V" S32K344_BMS

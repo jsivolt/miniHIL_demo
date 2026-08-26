@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Battery Simulator Control</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #f4f5f7; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+  .panels { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .panel { background: #fff; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .panel h2 { font-size: 1rem; margin: 0 0 .75rem; }
+  label { display: block; font-size: .8rem; color: #444; margin-top: .5rem; }
+  input, select { width: 100%; padding: .35rem; box-sizing: border-box; margin-top: .15rem; }
+  .row { display: flex; gap: .5rem; align-items: center; }
+  .row > * { flex: 1; }
+  button { cursor: pointer; padding: .5rem 1rem; border: none; border-radius: 4px; font-size: .9rem; margin-top: .75rem; margin-right: .5rem; }
+  #start-btn { background: #2e7d32; color: #fff; }
+  #stop-btn { background: #c62828; color: #fff; }
+  #apply-current-btn { background: #1565c0; color: #fff; }
+  button:disabled { background: #bbb; cursor: not-allowed; }
+  .status-badge { display: inline-block; padding: .15rem .6rem; border-radius: 12px; font-size: .8rem; color: #fff; }
+  .status-idle { background: #757575; }
+  .status-starting { background: #f9a825; }
+  .status-running { background: #2e7d32; }
+  .status-stopping { background: #ef6c00; }
+  .status-error { background: #c62828; }
+  #error-box { color: #c62828; font-size: .85rem; margin-top: .5rem; white-space: pre-wrap; }
+  .stats { display: grid; grid-template-columns: repeat(2, auto); gap: .25rem 1rem; font-size: .85rem; margin-top: .5rem; }
+  .stats span:nth-child(odd) { color: #666; }
+  table { border-collapse: collapse; width: 100%; font-size: .8rem; }
+  th, td { padding: .25rem .4rem; text-align: left; }
+  th { color: #666; font-weight: 500; }
+  .bar-track { background: #eee; border-radius: 3px; overflow: hidden; height: 14px; width: 120px; }
+  .bar-fill { height: 100%; background: #1565c0; }
+  .bar-fill.soc { background: #2e7d32; }
+  .cell-panel { flex: 1 1 100%; }
+  .chart-panel { flex: 3 1 500px; min-width: 0; align-self: flex-start; }
+  .chart-canvas-wrap { position: relative; width: 100%; height: 300px; }
+  .chart-controls { display: flex; flex-wrap: wrap; gap: .35rem .75rem; align-items: center; margin-bottom: .75rem; font-size: .8rem; }
+  .chart-controls label { display: inline-flex; align-items: center; gap: .25rem; margin: 0; font-size: .8rem; color: #333; }
+  .chart-controls input[type=checkbox] { width: auto; margin: 0; }
+  .chart-controls button { padding: .2rem .6rem; margin: 0; font-size: .75rem; background: #eee; color: #333; }
+</style>
+</head>
+<body>
+<h1>PyBaMM Battery Simulator</h1>
+<div class="panels">
+
+  <div class="panel" id="config-panel">
+    <h2>Configuration</h2>
+    <label>Current (A, positive discharges)<input id="cfg-current" type="number" step="0.1" value="{{ defaults.current_a }}"></label>
+    <label>Cell capacity (Ah)<input id="cfg-capacity" type="number" step="0.1" value="{{ defaults.capacity_ah }}"></label>
+    <label>Initial SoC (0..1)<input id="cfg-soc" type="number" step="0.01" min="0" max="1" value="{{ defaults.initial_soc }}"></label>
+    <label>CAN period (s)<input id="cfg-period" type="number" step="0.01" value="{{ defaults.period }}"></label>
+    <label>Random seed<input id="cfg-seed" type="number" step="1" value="{{ defaults.seed }}"></label>
+    <label>Interface
+      <select id="cfg-interface">
+        <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
+        <option value="pcan" {{ 'selected' if defaults.interface == 'pcan' else '' }}>pcan</option>
+      </select>
+    </label>
+    <label>Channel<input id="cfg-channel" type="text" value="{{ defaults.channel }}"></label>
+    <label>Bitrate<input id="cfg-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
+    <div>
+      <button id="start-btn">Start</button>
+      <button id="stop-btn" disabled>Stop</button>
+    </div>
+    <div id="error-box"></div>
+  </div>
+
+  <div class="panel" id="status-panel">
+    <h2>Status</h2>
+    <span id="status-badge" class="status-badge status-idle">idle</span>
+    <div class="stats">
+      <span>Sim time</span><span id="stat-simtime">-</span>
+      <span>Solver rate</span><span id="stat-hz">-</span>
+      <span>CAN overruns</span><span id="stat-overruns">-</span>
+      <span>Pack voltage</span><span id="stat-pack">-</span>
+      <span>Voltage min/mean/max</span><span id="stat-vrange">-</span>
+      <span>Mean SoC</span><span id="stat-soc">-</span>
+      <span>Cutoff cells</span><span id="stat-exhausted">-</span>
+    </div>
+    <label>Live current override (A)
+      <div class="row">
+        <input id="live-current" type="number" step="0.1" value="{{ defaults.current_a }}">
+        <button id="apply-current-btn" disabled>Apply</button>
+      </div>
+    </label>
+  </div>
+
+  <div class="panel chart-panel">
+    <h2>Cell voltage &amp; current vs time</h2>
+    <div class="chart-controls" id="chart-controls">
+      <button type="button" id="chart-select-all">All</button>
+      <button type="button" id="chart-select-none">None</button>
+      <span id="cell-checkboxes"></span>
+      <label><input type="checkbox" id="chart-toggle-current" checked> Current</label>
+    </div>
+    <div class="chart-canvas-wrap"><canvas id="vi-chart"></canvas></div>
+  </div>
+
+  <div class="panel cell-panel">
+    <h2>Per-cell voltage / SoC</h2>
+    <table>
+      <thead><tr><th>#</th><th>Voltage (V)</th><th></th><th>SoC</th><th></th></tr></thead>
+      <tbody id="cell-table-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const CELL_COUNT = {{ cell_count }};
+const startBtn = document.getElementById('start-btn');
+const stopBtn = document.getElementById('stop-btn');
+const applyCurrentBtn = document.getElementById('apply-current-btn');
+const errorBox = document.getElementById('error-box');
+const statusBadge = document.getElementById('status-badge');
+
+function buildCellRows() {
+  const body = document.getElementById('cell-table-body');
+  body.innerHTML = '';
+  for (let i = 0; i < CELL_COUNT; i++) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${i + 1}</td>
+      <td id="v-val-${i}">-</td>
+      <td><div class="bar-track"><div class="bar-fill" id="v-bar-${i}" style="width:0%"></div></div></td>
+      <td id="soc-val-${i}">-</td>
+      <td><div class="bar-track"><div class="bar-fill soc" id="soc-bar-${i}" style="width:0%"></div></div></td>
+    `;
+    body.appendChild(row);
+  }
+}
+
+async function postJSON(url, payload) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || `request to ${url} failed`);
+  }
+  return data;
+}
+
+startBtn.addEventListener('click', async () => {
+  errorBox.textContent = '';
+  try {
+    await postJSON('/api/start', {
+      current_a: parseFloat(document.getElementById('cfg-current').value),
+      capacity_ah: parseFloat(document.getElementById('cfg-capacity').value),
+      initial_soc: parseFloat(document.getElementById('cfg-soc').value),
+      period: parseFloat(document.getElementById('cfg-period').value),
+      seed: parseInt(document.getElementById('cfg-seed').value, 10),
+      interface: document.getElementById('cfg-interface').value,
+      channel: document.getElementById('cfg-channel').value,
+      bitrate: parseInt(document.getElementById('cfg-bitrate').value, 10),
+    });
+  } catch (error) {
+    errorBox.textContent = error.message;
+  }
+});
+
+stopBtn.addEventListener('click', async () => {
+  errorBox.textContent = '';
+  try {
+    await postJSON('/api/stop');
+  } catch (error) {
+    errorBox.textContent = error.message;
+  }
+});
+
+applyCurrentBtn.addEventListener('click', async () => {
+  errorBox.textContent = '';
+  try {
+    await postJSON('/api/current', { current_a: parseFloat(document.getElementById('live-current').value) });
+  } catch (error) {
+    errorBox.textContent = error.message;
+  }
+});
+
+function setStatusBadge(status) {
+  statusBadge.textContent = status;
+  statusBadge.className = 'status-badge status-' + status;
+}
+
+function updateButtons(status) {
+  const busy = status === 'starting' || status === 'running';
+  startBtn.disabled = busy;
+  stopBtn.disabled = !busy;
+  applyCurrentBtn.disabled = status !== 'running';
+  document.querySelectorAll('#config-panel input, #config-panel select').forEach((el) => { el.disabled = busy; });
+}
+
+function fmt(value, digits = 3) {
+  return typeof value === 'number' ? value.toFixed(digits) : '-';
+}
+
+const MAX_POINTS = 600; // ~5 min of history at the 500ms poll rate
+
+function cellColor(i) {
+  return `hsl(${Math.round((360 * i) / CELL_COUNT)}, 70%, 45%)`;
+}
+
+const viChart = new Chart(document.getElementById('vi-chart'), {
+  type: 'line',
+  data: {
+    datasets: [
+      ...Array.from({ length: CELL_COUNT }, (_, i) => ({
+        label: `Cell ${i + 1} V`,
+        data: [],
+        borderColor: cellColor(i),
+        borderWidth: 1,
+        pointRadius: 0,
+        yAxisID: 'yV',
+      })),
+      {
+        label: 'Current (A)',
+        data: [],
+        borderColor: '#000',
+        borderWidth: 2,
+        pointRadius: 0,
+        yAxisID: 'yI',
+      },
+    ],
+  },
+  options: {
+    animation: false,
+    parsing: false,
+    normalized: true,
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'nearest', intersect: false },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Sim time (s)' } },
+      yV: { type: 'linear', position: 'left', title: { display: true, text: 'Voltage (V)' } },
+      yI: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } },
+    },
+    plugins: { legend: { display: false } },
+  },
+});
+
+let lastSteps = -1;
+
+function buildChartControls() {
+  const container = document.getElementById('cell-checkboxes');
+  for (let i = 0; i < CELL_COUNT; i++) {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" data-cell="${i}" checked> Cell ${i + 1}`;
+    label.querySelector('input').addEventListener('change', (event) => {
+      viChart.data.datasets[i].hidden = !event.target.checked;
+      viChart.update('none');
+    });
+    container.appendChild(label);
+  }
+
+  document.getElementById('chart-toggle-current').addEventListener('change', (event) => {
+    viChart.data.datasets[CELL_COUNT].hidden = !event.target.checked;
+    viChart.update('none');
+  });
+
+  document.getElementById('chart-select-all').addEventListener('click', () => setAllCellVisibility(true));
+  document.getElementById('chart-select-none').addEventListener('click', () => setAllCellVisibility(false));
+}
+
+function setAllCellVisibility(visible) {
+  document.querySelectorAll('#cell-checkboxes input[type=checkbox]').forEach((checkbox) => {
+    checkbox.checked = visible;
+  });
+  for (let i = 0; i < CELL_COUNT; i++) {
+    viChart.data.datasets[i].hidden = !visible;
+  }
+  viChart.update('none');
+}
+
+buildChartControls();
+
+function updateChart(snap) {
+  if (snap.steps < lastSteps) {
+    viChart.data.datasets.forEach((dataset) => { dataset.data = []; });
+  }
+  lastSteps = snap.steps;
+
+  viChart.data.datasets.forEach((dataset, i) => {
+    const value = i < CELL_COUNT ? snap.voltages[i] : snap.current_a;
+    dataset.data.push({ x: snap.sim_time, y: value });
+    if (dataset.data.length > MAX_POINTS) dataset.data.shift();
+  });
+  viChart.update('none');
+}
+
+async function poll() {
+  try {
+    const response = await fetch('/api/status');
+    const data = await response.json();
+    setStatusBadge(data.status);
+    updateButtons(data.status);
+    errorBox.textContent = data.error || '';
+
+    const snap = data.snapshot;
+    if (snap) {
+      document.getElementById('stat-simtime').textContent = fmt(snap.sim_time, 1) + ' s';
+      document.getElementById('stat-hz').textContent = fmt(snap.steps / Math.max(snap.sim_time, 1e-9), 1) + ' Hz';
+      document.getElementById('stat-overruns').textContent = data.overruns;
+      document.getElementById('stat-pack').textContent = fmt(snap.pack_voltage) + ' V';
+      document.getElementById('stat-vrange').textContent =
+        `${fmt(snap.min_voltage)} / ${fmt(snap.mean_voltage)} / ${fmt(snap.max_voltage)}`;
+      document.getElementById('stat-soc').textContent = fmt(snap.mean_soc);
+      document.getElementById('stat-exhausted').textContent = `${snap.exhausted}/${snap.voltages.length}`;
+
+      updateChart(snap);
+
+      snap.voltages.forEach((voltage, i) => {
+        document.getElementById(`v-val-${i}`).textContent = fmt(voltage);
+        document.getElementById(`v-bar-${i}`).style.width = Math.min(100, (voltage / 6.5535) * 100) + '%';
+      });
+      snap.socs.forEach((soc, i) => {
+        document.getElementById(`soc-val-${i}`).textContent = fmt(soc);
+        document.getElementById(`soc-bar-${i}`).style.width = Math.min(100, Math.max(0, soc * 100)) + '%';
+      });
+    }
+  } catch (error) {
+    errorBox.textContent = 'status poll failed: ' + error.message;
+  }
+}
+
+buildCellRows();
+poll();
+setInterval(poll, 500);
+</script>
+</body>
+</html>
