@@ -34,6 +34,9 @@
   .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .65rem; }
   .config-grid label { display: block; min-width: 0; margin: 0; font-size: .74rem; color: var(--muted); }
   .config-grid .field-wide { grid-column: 1 / -1; }
+  #model-note { display: none; grid-column: 1 / -1; margin: -.35rem 0 0; color: #8a6100; font-size: .7rem; }
+  #model-note:not(:empty) { display: block; }
+  #paramset-note { grid-column: 1 / -1; margin: -.45rem 0 0; color: var(--muted); font-size: .7rem; }
   input, select { width: 100%; min-height: 36px; margin-top: .3rem; padding: .4rem .55rem; color: var(--ink); background: #fff; border: 1px solid #b8c1ca; border-radius: 4px; }
   input:hover, select:hover { border-color: #7f8d99; }
   input:disabled, select:disabled { color: #7b858e; background: #edf0f2; }
@@ -54,6 +57,8 @@
   .status-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 1rem; align-items: end; }
   .stats { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: .75rem; }
   .stat { min-width: 0; padding-right: .75rem; border-right: 1px solid var(--line); }
+  .stat.wide { grid-column: span 2; }
+  .stat.wide .stat-value { font-size: .76rem; }
   .stat:last-child { border: 0; }
   .stat-label { display: block; margin-bottom: .22rem; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
   .stat-value { display: block; overflow-wrap: anywhere; font-size: .88rem; font-variant-numeric: tabular-nums; }
@@ -123,6 +128,16 @@
     <div class="panel-header"><h2>Configuration</h2></div>
     <div class="panel-body">
       <div class="config-grid">
+        <label class="field-wide">Cell model
+          <select id="cfg-model">
+            {% for model in models %}
+            <option value="{{ model.id }}" {{ 'selected' if model.id == defaults.model else '' }}>{{ model.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field-wide">Parameter set<select id="cfg-paramset"></select></label>
+        <p id="paramset-note"></p>
+        <p id="model-note"></p>
         <label class="field-wide">Current (A, positive discharges)<input id="cfg-current" type="number" step="0.1" value="{{ defaults.current_a }}"></label>
         <label>Cell capacity (Ah)<input id="cfg-capacity" type="number" step="0.1" value="{{ defaults.capacity_ah }}"></label>
         <label>Initial SoC (0..1)<input id="cfg-soc" type="number" step="0.01" min="0" max="1" value="{{ defaults.initial_soc }}"></label>
@@ -153,6 +168,8 @@
       </div>
       <div class="panel-body status-layout">
         <div class="stats">
+          <div class="stat wide"><span class="stat-label">Cell model</span><span class="stat-value" id="stat-model">-</span></div>
+          <div class="stat wide"><span class="stat-label">Chemistry</span><span class="stat-value" id="stat-chemistry">-</span></div>
           <div class="stat"><span class="stat-label">Sim time</span><span class="stat-value" id="stat-simtime">-</span></div>
           <div class="stat"><span class="stat-label">Solver rate</span><span class="stat-value" id="stat-hz">-</span></div>
           <div class="stat"><span class="stat-label">CAN overruns</span><span class="stat-value" id="stat-overruns">-</span></div>
@@ -195,11 +212,41 @@
 
 <script>
 const CELL_COUNT = {{ cell_count }};
+const MODELS = {{ models | tojson }};
+const PARAMETER_SET_INFO = {{ parameter_set_info | tojson }};
+const DEFAULT_PARAMETER_SET = {{ defaults.parameter_set | tojson }};
 const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const applyCurrentBtn = document.getElementById('apply-current-btn');
 const errorBox = document.getElementById('error-box');
 const statusBadge = document.getElementById('status-badge');
+const modelSelect = document.getElementById('cfg-model');
+const paramSetSelect = document.getElementById('cfg-paramset');
+const modelNote = document.getElementById('model-note');
+const paramSetNote = document.getElementById('paramset-note');
+
+function refreshParameterSetNote() {
+  paramSetNote.textContent = PARAMETER_SET_INFO[paramSetSelect.value] || '';
+}
+
+function refreshParameterSets() {
+  const model = MODELS.find((entry) => entry.id === modelSelect.value);
+  paramSetSelect.innerHTML = '';
+  model.parameter_sets.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    option.title = PARAMETER_SET_INFO[name] || '';
+    option.selected = name === DEFAULT_PARAMETER_SET;
+    paramSetSelect.appendChild(option);
+  });
+  modelNote.textContent = model.realtime ? '' : 'Heaviest model: startup takes longer and the solver rate will drop.';
+  refreshParameterSetNote();
+}
+
+modelSelect.addEventListener('change', refreshParameterSets);
+paramSetSelect.addEventListener('change', refreshParameterSetNote);
+refreshParameterSets();
 
 function buildCellRows() {
   const body = document.getElementById('cell-table-body');
@@ -245,6 +292,8 @@ startBtn.addEventListener('click', async () => {
   errorBox.textContent = '';
   try {
     await postJSON('/api/start', {
+      model: modelSelect.value,
+      parameter_set: paramSetSelect.value,
       current_a: parseFloat(document.getElementById('cfg-current').value),
       capacity_ah: parseFloat(document.getElementById('cfg-capacity').value),
       initial_soc: parseFloat(document.getElementById('cfg-soc').value),
@@ -395,6 +444,12 @@ async function poll() {
     setStatusBadge(data.status);
     updateButtons(data.status);
     errorBox.textContent = data.error || '';
+
+    const model = MODELS.find((entry) => entry.id === data.params.model);
+    document.getElementById('stat-model').textContent =
+      `${model ? model.label : data.params.model} / ${data.params.parameter_set}`;
+    document.getElementById('stat-chemistry').textContent =
+      PARAMETER_SET_INFO[data.params.parameter_set] || '-';
 
     const snap = data.snapshot;
     if (snap) {

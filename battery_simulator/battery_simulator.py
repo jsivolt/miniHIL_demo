@@ -4,6 +4,8 @@ The solver is far slower than the 100ms CAN cycle, so it runs on its own thread 
 elapsed time. Simulated time still tracks the wall clock; only the voltage refresh rate is lower.
 """
 import argparse
+import pathlib
+import sys
 import threading
 import time
 
@@ -12,7 +14,9 @@ import cantools
 import numpy as np
 import pybamm
 
-from write_cell_voltages import DBC_PATH, send_cell_voltages
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pcan"))
+
+from write_cell_voltages import DBC_PATH, send_cell_voltages  # noqa: E402
 
 CELL_COUNT = 16
 SIGNAL_MIN_V = 0.0

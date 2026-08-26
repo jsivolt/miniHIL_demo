@@ -8,16 +8,28 @@ import sys
 
 from flask import Flask, jsonify, render_template, request
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pcan"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "battery_simulator"))
 
-from battery_sim_core import CELL_COUNT, DEFAULT_PARAMS, simulator  # noqa: E402
+from battery_sim_core import (  # noqa: E402
+    CELL_COUNT,
+    DEFAULT_PARAMS,
+    PARAMETER_SET_INFO,
+    model_catalog,
+    simulator,
+)
 
 app = Flask(__name__)
 
 
 @app.route("/")
 def index():
-    return render_template("index.html", cell_count=CELL_COUNT, defaults=DEFAULT_PARAMS)
+    return render_template(
+        "index.html",
+        cell_count=CELL_COUNT,
+        defaults=DEFAULT_PARAMS,
+        models=model_catalog(),
+        parameter_set_info=PARAMETER_SET_INFO,
+    )
 
 
 @app.route("/api/status")
@@ -30,6 +42,8 @@ def api_start():
     body = request.get_json(silent=True) or {}
     try:
         simulator.start(
+            model=str(body.get("model", DEFAULT_PARAMS["model"])),
+            parameter_set=str(body.get("parameter_set", DEFAULT_PARAMS["parameter_set"])),
             current_a=float(body.get("current_a", DEFAULT_PARAMS["current_a"])),
             capacity_ah=float(body.get("capacity_ah", DEFAULT_PARAMS["capacity_ah"])),
             initial_soc=float(body.get("initial_soc", DEFAULT_PARAMS["initial_soc"])),
