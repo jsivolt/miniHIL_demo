@@ -2,112 +2,195 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Battery Simulator Control</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #f4f5f7; color: #1a1a1a; }
-  h1 { font-size: 1.4rem; margin-bottom: 1rem; }
-  .panels { display: flex; flex-wrap: wrap; gap: 1rem; }
-  .panel { background: #fff; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-  .panel h2 { font-size: 1rem; margin: 0 0 .75rem; }
-  label { display: block; font-size: .8rem; color: #444; margin-top: .5rem; }
-  input, select { width: 100%; padding: .35rem; box-sizing: border-box; margin-top: .15rem; }
-  .row { display: flex; gap: .5rem; align-items: center; }
-  .row > * { flex: 1; }
-  button { cursor: pointer; padding: .5rem 1rem; border: none; border-radius: 4px; font-size: .9rem; margin-top: .75rem; margin-right: .5rem; }
-  #start-btn { background: #2e7d32; color: #fff; }
-  #stop-btn { background: #c62828; color: #fff; }
-  #apply-current-btn { background: #1565c0; color: #fff; }
-  button:disabled { background: #bbb; cursor: not-allowed; }
-  .status-badge { display: inline-block; padding: .15rem .6rem; border-radius: 12px; font-size: .8rem; color: #fff; }
-  .status-idle { background: #757575; }
-  .status-starting { background: #f9a825; }
-  .status-running { background: #2e7d32; }
-  .status-stopping { background: #ef6c00; }
-  .status-error { background: #c62828; }
-  #error-box { color: #c62828; font-size: .85rem; margin-top: .5rem; white-space: pre-wrap; }
-  .stats { display: grid; grid-template-columns: repeat(2, auto); gap: .25rem 1rem; font-size: .85rem; margin-top: .5rem; }
-  .stats span:nth-child(odd) { color: #666; }
-  table { border-collapse: collapse; width: 100%; font-size: .8rem; }
-  th, td { padding: .25rem .4rem; text-align: left; }
-  th { color: #666; font-weight: 500; }
-  .bar-track { background: #eee; border-radius: 3px; overflow: hidden; height: 14px; width: 120px; }
-  .bar-fill { height: 100%; background: #1565c0; }
-  .bar-fill.soc { background: #2e7d32; }
-  .cell-panel { flex: 1 1 100%; }
-  .chart-panel { flex: 3 1 500px; min-width: 0; align-self: flex-start; }
-  .chart-canvas-wrap { position: relative; width: 100%; height: 300px; }
-  .chart-controls { display: flex; flex-wrap: wrap; gap: .35rem .75rem; align-items: center; margin-bottom: .75rem; font-size: .8rem; }
-  .chart-controls label { display: inline-flex; align-items: center; gap: .25rem; margin: 0; font-size: .8rem; color: #333; }
-  .chart-controls input[type=checkbox] { width: auto; margin: 0; }
-  .chart-controls button { padding: .2rem .6rem; margin: 0; font-size: .75rem; background: #eee; color: #333; }
+  :root {
+    --ink: #17202a;
+    --muted: #66717e;
+    --line: #dbe1e7;
+    --surface: #ffffff;
+    --canvas: #eef1f4;
+    --blue: #1769aa;
+    --green: #247a48;
+    --red: #b8323a;
+    --amber: #b76e00;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Bahnschrift, Aptos, "Segoe UI", sans-serif; }
+  button, input, select { font: inherit; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .app-header { min-height: 64px; padding: .9rem clamp(1rem, 2vw, 2rem); display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #18232d; color: #fff; border-bottom: 3px solid #36a269; }
+  .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: 0; }
+  .app-header p { margin: .2rem 0 0; color: #b9c5cf; font-size: .78rem; }
+  .dashboard { display: grid; grid-template-columns: minmax(260px, 310px) minmax(0, 1fr); gap: 1rem; padding: 1rem; max-width: 1800px; margin: 0 auto; }
+  .workspace { min-width: 0; display: grid; gap: 1rem; align-content: start; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 1px 2px rgba(23, 32, 42, .06); }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
+  .panel-header h2 { margin: 0; font-size: .92rem; font-weight: 650; }
+  .panel-body { padding: 1rem; }
+  #config-panel { align-self: start; position: sticky; top: 1rem; }
+  .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .65rem; }
+  .config-grid label { display: block; min-width: 0; margin: 0; font-size: .74rem; color: var(--muted); }
+  .config-grid .field-wide { grid-column: 1 / -1; }
+  input, select { width: 100%; min-height: 36px; margin-top: .3rem; padding: .4rem .55rem; color: var(--ink); background: #fff; border: 1px solid #b8c1ca; border-radius: 4px; }
+  input:hover, select:hover { border-color: #7f8d99; }
+  input:disabled, select:disabled { color: #7b858e; background: #edf0f2; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: 1rem; }
+  button { min-height: 36px; cursor: pointer; padding: .45rem .75rem; border: 0; border-radius: 4px; font-size: .8rem; font-weight: 650; }
+  #start-btn { background: var(--green); color: #fff; }
+  #stop-btn { background: var(--red); color: #fff; }
+  #apply-current-btn { background: var(--blue); color: #fff; }
+  button:disabled { background: #aeb6bd !important; cursor: not-allowed; }
+  #error-box { display: none; margin-top: .75rem; padding: .65rem .75rem; color: #8f2027; background: #fff0f1; border-left: 3px solid var(--red); border-radius: 3px; font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #error-box:not(:empty) { display: block; }
+  .status-badge { display: inline-flex; align-items: center; min-height: 24px; padding: .18rem .65rem; border-radius: 999px; color: #fff; font-size: .72rem; font-weight: 650; text-transform: uppercase; }
+  .status-idle { background: #697680; }
+  .status-starting { background: var(--amber); }
+  .status-running { background: var(--green); }
+  .status-stopping { background: #c25d18; }
+  .status-error { background: var(--red); }
+  .status-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 1rem; align-items: end; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: .75rem; }
+  .stat { min-width: 0; padding-right: .75rem; border-right: 1px solid var(--line); }
+  .stat:last-child { border: 0; }
+  .stat-label { display: block; margin-bottom: .22rem; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
+  .stat-value { display: block; overflow-wrap: anywhere; font-size: .88rem; font-variant-numeric: tabular-nums; }
+  .live-current label { display: block; color: var(--muted); font-size: .72rem; }
+  .live-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; margin-top: .3rem; }
+  .live-row input, .live-row button { margin: 0; }
+  .chart-panel { min-width: 0; }
+  .chart-body { padding: .75rem 1rem 1rem; }
+  .chart-controls { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .6rem; align-items: start; margin-bottom: .65rem; }
+  .chart-actions { display: flex; gap: .35rem; }
+  .chart-controls button { min-height: 28px; padding: .25rem .55rem; color: #35414c; background: #e8edf1; font-size: .7rem; }
+  #cell-checkboxes { display: flex; flex-wrap: wrap; gap: .3rem .55rem; max-height: 56px; overflow-y: auto; padding: .2rem .1rem; }
+  .chart-controls label { display: inline-flex; align-items: center; gap: .25rem; margin: 0; color: #3f4a54; font-size: .7rem; white-space: nowrap; }
+  .chart-controls input[type=checkbox] { width: auto; min-height: 0; margin: 0; accent-color: var(--cell-color, var(--blue)); }
+  .color-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--cell-color); }
+  .current-toggle { min-height: 28px; padding: .25rem .5rem; border-left: 1px solid var(--line); }
+  .chart-canvas-wrap { position: relative; width: 100%; height: clamp(280px, 36vh, 430px); }
+  .cell-grid { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 1px; background: var(--line); }
+  .cell-item { min-width: 0; padding: .7rem .8rem; background: #fff; border-left: 3px solid var(--cell-color); }
+  .cell-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .55rem; }
+  .cell-number { font-size: .75rem; font-weight: 650; }
+  .cell-voltage { font-size: .9rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .cell-metrics { display: grid; grid-template-columns: 24px minmax(0, 1fr) 42px; gap: .4rem; align-items: center; margin-top: .35rem; }
+  .metric-label, .metric-value { color: var(--muted); font-size: .66rem; font-variant-numeric: tabular-nums; }
+  .metric-value { text-align: right; }
+  .bar-track { width: 100%; height: 5px; overflow: hidden; background: #e8ecef; border-radius: 2px; }
+  .bar-fill { height: 100%; background: var(--cell-color, var(--blue)); transition: width .2s linear; }
+  .bar-fill.soc { background: var(--green); }
+  @media (max-width: 1180px) {
+    .stats { grid-template-columns: repeat(3, minmax(110px, 1fr)); }
+    .cell-grid { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
+    #config-panel { position: static; }
+    .config-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .config-grid .field-wide { grid-column: auto; }
+    .status-layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 680px) {
+    .app-header { align-items: flex-start; }
+    .app-header p { display: none; }
+    .dashboard { padding: .65rem; gap: .65rem; }
+    .workspace { gap: .65rem; }
+    .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .chart-controls { grid-template-columns: 1fr auto; }
+    #cell-checkboxes { grid-column: 1 / -1; grid-row: 2; max-height: 76px; }
+    .cell-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .chart-canvas-wrap { height: 280px; }
+  }
+  @media (max-width: 420px) {
+    .cell-grid { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
-<h1>PyBaMM Battery Simulator</h1>
-<div class="panels">
-
-  <div class="panel" id="config-panel">
-    <h2>Configuration</h2>
-    <label>Current (A, positive discharges)<input id="cfg-current" type="number" step="0.1" value="{{ defaults.current_a }}"></label>
-    <label>Cell capacity (Ah)<input id="cfg-capacity" type="number" step="0.1" value="{{ defaults.capacity_ah }}"></label>
-    <label>Initial SoC (0..1)<input id="cfg-soc" type="number" step="0.01" min="0" max="1" value="{{ defaults.initial_soc }}"></label>
-    <label>CAN period (s)<input id="cfg-period" type="number" step="0.01" value="{{ defaults.period }}"></label>
-    <label>Random seed<input id="cfg-seed" type="number" step="1" value="{{ defaults.seed }}"></label>
-    <label>Interface
-      <select id="cfg-interface">
-        <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
-        <option value="pcan" {{ 'selected' if defaults.interface == 'pcan' else '' }}>pcan</option>
-      </select>
-    </label>
-    <label>Channel<input id="cfg-channel" type="text" value="{{ defaults.channel }}"></label>
-    <label>Bitrate<input id="cfg-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
-    <div>
-      <button id="start-btn">Start</button>
-      <button id="stop-btn" disabled>Stop</button>
-    </div>
-    <div id="error-box"></div>
+<header class="app-header">
+  <div>
+    <h1>PyBaMM Battery Simulator</h1>
+    <p>Hardware-in-the-loop battery telemetry and control</p>
   </div>
-
-  <div class="panel" id="status-panel">
-    <h2>Status</h2>
-    <span id="status-badge" class="status-badge status-idle">idle</span>
-    <div class="stats">
-      <span>Sim time</span><span id="stat-simtime">-</span>
-      <span>Solver rate</span><span id="stat-hz">-</span>
-      <span>CAN overruns</span><span id="stat-overruns">-</span>
-      <span>Pack voltage</span><span id="stat-pack">-</span>
-      <span>Voltage min/mean/max</span><span id="stat-vrange">-</span>
-      <span>Mean SoC</span><span id="stat-soc">-</span>
-      <span>Cutoff cells</span><span id="stat-exhausted">-</span>
-    </div>
-    <label>Live current override (A)
-      <div class="row">
-        <input id="live-current" type="number" step="0.1" value="{{ defaults.current_a }}">
-        <button id="apply-current-btn" disabled>Apply</button>
+</header>
+<div class="dashboard">
+  <aside class="panel" id="config-panel">
+    <div class="panel-header"><h2>Configuration</h2></div>
+    <div class="panel-body">
+      <div class="config-grid">
+        <label class="field-wide">Current (A, positive discharges)<input id="cfg-current" type="number" step="0.1" value="{{ defaults.current_a }}"></label>
+        <label>Cell capacity (Ah)<input id="cfg-capacity" type="number" step="0.1" value="{{ defaults.capacity_ah }}"></label>
+        <label>Initial SoC (0..1)<input id="cfg-soc" type="number" step="0.01" min="0" max="1" value="{{ defaults.initial_soc }}"></label>
+        <label>CAN period (s)<input id="cfg-period" type="number" step="0.01" value="{{ defaults.period }}"></label>
+        <label>Random seed<input id="cfg-seed" type="number" step="1" value="{{ defaults.seed }}"></label>
+        <label class="field-wide">Interface
+          <select id="cfg-interface">
+            <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
+            <option value="pcan" {{ 'selected' if defaults.interface == 'pcan' else '' }}>pcan</option>
+          </select>
+        </label>
+        <label class="field-wide">Channel<input id="cfg-channel" type="text" value="{{ defaults.channel }}"></label>
+        <label class="field-wide">Bitrate<input id="cfg-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
       </div>
-    </label>
-  </div>
-
-  <div class="panel chart-panel">
-    <h2>Cell voltage &amp; current vs time</h2>
-    <div class="chart-controls" id="chart-controls">
-      <button type="button" id="chart-select-all">All</button>
-      <button type="button" id="chart-select-none">None</button>
-      <span id="cell-checkboxes"></span>
-      <label><input type="checkbox" id="chart-toggle-current" checked> Current</label>
+      <div class="actions">
+        <button id="start-btn">Start</button>
+        <button id="stop-btn" disabled>Stop</button>
+      </div>
+      <div id="error-box" role="alert"></div>
     </div>
-    <div class="chart-canvas-wrap"><canvas id="vi-chart"></canvas></div>
-  </div>
+  </aside>
 
-  <div class="panel cell-panel">
-    <h2>Per-cell voltage / SoC</h2>
-    <table>
-      <thead><tr><th>#</th><th>Voltage (V)</th><th></th><th>SoC</th><th></th></tr></thead>
-      <tbody id="cell-table-body"></tbody>
-    </table>
-  </div>
+  <main class="workspace">
+    <section class="panel" id="status-panel">
+      <div class="panel-header">
+        <h2>System status</h2>
+        <span id="status-badge" class="status-badge status-idle">idle</span>
+      </div>
+      <div class="panel-body status-layout">
+        <div class="stats">
+          <div class="stat"><span class="stat-label">Sim time</span><span class="stat-value" id="stat-simtime">-</span></div>
+          <div class="stat"><span class="stat-label">Solver rate</span><span class="stat-value" id="stat-hz">-</span></div>
+          <div class="stat"><span class="stat-label">CAN overruns</span><span class="stat-value" id="stat-overruns">-</span></div>
+          <div class="stat"><span class="stat-label">Pack voltage</span><span class="stat-value" id="stat-pack">-</span></div>
+          <div class="stat"><span class="stat-label">Voltage min / mean / max</span><span class="stat-value" id="stat-vrange">-</span></div>
+          <div class="stat"><span class="stat-label">Mean SoC</span><span class="stat-value" id="stat-soc">-</span></div>
+          <div class="stat"><span class="stat-label">Cutoff cells</span><span class="stat-value" id="stat-exhausted">-</span></div>
+        </div>
+        <div class="live-current">
+          <label for="live-current">Live current override (A)</label>
+          <div class="live-row">
+            <input id="live-current" type="number" step="0.1" value="{{ defaults.current_a }}">
+            <button id="apply-current-btn" disabled>Apply</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <section class="panel chart-panel">
+      <div class="panel-header"><h2>Cell voltage &amp; current vs time</h2></div>
+      <div class="chart-body">
+        <div class="chart-controls" id="chart-controls">
+          <div class="chart-actions">
+            <button type="button" id="chart-select-all" title="Show all cell traces">All</button>
+            <button type="button" id="chart-select-none" title="Hide all cell traces">None</button>
+          </div>
+          <span id="cell-checkboxes"></span>
+          <label class="current-toggle"><input type="checkbox" id="chart-toggle-current" checked> Current</label>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="vi-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel cell-panel">
+      <div class="panel-header"><h2>Per-cell voltage / SoC</h2></div>
+      <div class="cell-grid" id="cell-table-body"></div>
+    </section>
+  </main>
 </div>
 
 <script>
@@ -122,15 +205,26 @@ function buildCellRows() {
   const body = document.getElementById('cell-table-body');
   body.innerHTML = '';
   for (let i = 0; i < CELL_COUNT; i++) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${i + 1}</td>
-      <td id="v-val-${i}">-</td>
-      <td><div class="bar-track"><div class="bar-fill" id="v-bar-${i}" style="width:0%"></div></div></td>
-      <td id="soc-val-${i}">-</td>
-      <td><div class="bar-track"><div class="bar-fill soc" id="soc-bar-${i}" style="width:0%"></div></div></td>
+    const item = document.createElement('div');
+    item.className = 'cell-item';
+    item.style.setProperty('--cell-color', cellColor(i));
+    item.innerHTML = `
+      <div class="cell-heading">
+        <span class="cell-number">Cell ${i + 1}</span>
+        <span class="cell-voltage"><span id="v-val-${i}">-</span> V</span>
+      </div>
+      <div class="cell-metrics">
+        <span class="metric-label">Volt</span>
+        <div class="bar-track"><div class="bar-fill" id="v-bar-${i}" style="width:0%"></div></div>
+        <span class="metric-value">6.55 V</span>
+      </div>
+      <div class="cell-metrics">
+        <span class="metric-label">SoC</span>
+        <div class="bar-track"><div class="bar-fill soc" id="soc-bar-${i}" style="width:0%"></div></div>
+        <span class="metric-value" id="soc-val-${i}">-</span>
+      </div>
     `;
-    body.appendChild(row);
+    body.appendChild(item);
   }
 }
 
@@ -250,7 +344,8 @@ function buildChartControls() {
   const container = document.getElementById('cell-checkboxes');
   for (let i = 0; i < CELL_COUNT; i++) {
     const label = document.createElement('label');
-    label.innerHTML = `<input type="checkbox" data-cell="${i}" checked> Cell ${i + 1}`;
+    label.style.setProperty('--cell-color', cellColor(i));
+    label.innerHTML = `<input type="checkbox" data-cell="${i}" checked><span class="color-dot"></span>Cell ${i + 1}`;
     label.querySelector('input').addEventListener('change', (event) => {
       viChart.data.datasets[i].hidden = !event.target.checked;
       viChart.update('none');
