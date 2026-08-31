@@ -1,0 +1,25 @@
+# Conda-forge alternative to requirements.lock for the PyBOP calibration workflow.
+#
+# PyBaMM ships two conda-forge packages:
+#   - pybamm-base: core package, no optional extras (smaller, faster to solve)
+#   - pybamm:      pybamm-base + all optional extras (plotting, jupyter, etc.)
+# We use pybamm-base here since this workflow only needs the core solver stack;
+# switch to `pybamm` if notebook/plotting extras are needed later.
+#
+# PyBOP has no conda-forge package (PyPI-only), so it is installed via the
+# `pip:` subsection below.
+#
+# Solver backend recorded at lock time (see requirements.lock header for the
+# authoritative pinned versions): PyBaMM 26.8.0.0, using the `pybammsolvers`
+# package (IDAKLU/SUNDIALS bindings) and `casadi` for the CasADi solver.
+name: pybop-calibration
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pybamm-base=26.8.0.0
+  - numpy
+  - scipy
+  - pip
+  - pip:
+      - pybop==26.3

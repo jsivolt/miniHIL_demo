@@ -24,11 +24,33 @@
   .app-header { min-height: 64px; padding: .9rem clamp(1rem, 2vw, 2rem); display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #18232d; color: #fff; border-bottom: 3px solid #36a269; }
   .app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: 0; }
   .app-header p { margin: .2rem 0 0; color: #b9c5cf; font-size: .78rem; }
+  .tab-nav { display: flex; gap: .4rem; padding: .6rem clamp(1rem, 2vw, 2rem) 0; background: #18232d; }
+  .tab-btn { min-height: 34px; padding: .45rem 1.1rem; color: #b9c5cf; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 5px 5px 0 0; font-size: .8rem; font-weight: 650; cursor: pointer; }
+  .tab-btn.active { color: var(--ink); background: var(--canvas); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
   .dashboard { display: grid; grid-template-columns: minmax(260px, 310px) minmax(0, 1fr); gap: 1rem; padding: 1rem; max-width: 1800px; margin: 0 auto; }
+  .sender-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 1rem; padding: 1rem; max-width: 1800px; margin: 0 auto; align-items: start; }
+  .send-form label { display: block; margin: 0 0 .65rem; font-size: .74rem; color: var(--muted); }
+  .send-form select, .send-form input { margin-top: .3rem; }
+  .send-form button { margin-top: .3rem; background: var(--blue); color: #fff; }
+  .signal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .65rem; }
+  .signal-grid label { grid-column: span 1; }
+  #dbc-signal-fields:empty::after { content: 'Select a message to see its signals.'; color: var(--muted); font-size: .74rem; }
+  #can-log, #ao-log, #vcp-log { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; font-family: Consolas, monospace; font-size: .74rem; }
+  #can-log li, #ao-log li, #vcp-log li { padding: .4rem .5rem; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
+  #can-log li.log-error, #ao-log li.log-error, #vcp-log li.log-error { color: var(--red); }
+  #can-log li.log-ok, #ao-log li.log-ok, #vcp-log li.log-ok { color: var(--green); }
+  .bus-message-table { width: 100%; margin-top: .65rem; border-collapse: collapse; table-layout: fixed; font-size: .74rem; }
+  .bus-message-table th, .bus-message-table td { padding: .4rem .55rem; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .bus-message-table th { color: var(--muted); font-weight: 650; font-size: .68rem; text-transform: uppercase; }
+  .bus-message-table td.bus-status-ok { color: var(--green); font-weight: 650; }
+  .bus-message-table td.bus-status-missing { color: var(--red); font-weight: 650; }
+  @media (max-width: 900px) { .sender-layout { grid-template-columns: 1fr; } }
   .workspace { min-width: 0; display: grid; gap: 1rem; align-content: start; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 1px 2px rgba(23, 32, 42, .06); }
-  .panel-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
-  .panel-header h2 { margin: 0; font-size: .92rem; font-weight: 650; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .panel-header h2 { margin: 0; min-width: 0; font-size: .92rem; font-weight: 650; }
   .panel-body { padding: 1rem; }
   #config-panel { align-self: start; position: sticky; top: 1rem; }
   .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .65rem; }
@@ -123,6 +145,13 @@
     <p>Hardware-in-the-loop battery telemetry and control</p>
   </div>
 </header>
+<nav class="tab-nav">
+  <button type="button" class="tab-btn active" data-tab="tab-simulator">Battery Simulator</button>
+  <button type="button" class="tab-btn" data-tab="tab-can-sender">CAN Sender</button>
+  <button type="button" class="tab-btn" data-tab="tab-ao">NI 6212 Analog Output</button>
+  <button type="button" class="tab-btn" data-tab="tab-vcellpack">Cell/Pack Sim</button>
+</nav>
+<div class="tab-panel active" id="tab-simulator">
 <div class="dashboard">
   <aside class="panel" id="config-panel">
     <div class="panel-header"><h2>Configuration</h2></div>
@@ -150,6 +179,10 @@
           </select>
         </label>
         <label class="field-wide">Channel<input id="cfg-channel" type="text" value="{{ defaults.channel }}"></label>
+        <div class="field-wide pcan-scan-row">
+          <button type="button" id="cfg-scan-btn">Scan PCAN devices</button>
+          <select id="cfg-device-select" style="display:none;"></select>
+        </div>
         <label class="field-wide">Bitrate<input id="cfg-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
       </div>
       <div class="actions">
@@ -209,16 +242,177 @@
     </section>
   </main>
 </div>
+</div>
+
+<div class="tab-panel" id="tab-can-sender">
+<div class="sender-layout">
+  <div class="workspace">
+    <section class="panel">
+      <div class="panel-header"><h2>Bus connection</h2></div>
+      <div class="panel-body">
+        <div class="config-grid">
+          <label class="field-wide">Interface
+            <select id="can-interface">
+              <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
+              <option value="pcan" {{ 'selected' if defaults.interface == 'pcan' else '' }}>pcan</option>
+            </select>
+          </label>
+          <label class="field-wide">Channel<input id="can-channel" type="text" value="{{ defaults.channel }}"></label>
+          <div class="field-wide pcan-scan-row">
+            <button type="button" id="can-scan-btn">Scan PCAN devices</button>
+            <select id="can-device-select" style="display:none;"></select>
+          </div>
+          <label class="field-wide">Bitrate<input id="can-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
+        </div>
+        <p style="margin:.6rem 0 0; color:var(--muted); font-size:.7rem;">Each send opens the bus, transmits one frame, and closes it again. If the simulator is running on the same PCAN channel, sending here may fail while it holds the device open.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Raw message</h2></div>
+      <div class="panel-body send-form">
+        <label>Arbitration ID (hex or decimal)<input id="raw-id" type="text" placeholder="0x411"></label>
+        <label>Data bytes (hex, space separated)<input id="raw-data" type="text" placeholder="94 02 00 00 00 00 00 00"></label>
+        <label><input id="raw-extended" type="checkbox" style="width:auto; min-height:0; margin-right:.4rem;">Extended (29-bit) ID</label>
+        <label><input id="raw-counter-enabled" type="checkbox" style="width:auto; min-height:0; margin-right:.4rem;">Auto-increment byte at index<input id="raw-counter-index" type="number" min="0" max="7" value="6" style="width:3.5rem; display:inline-block; margin:0 0 0 .4rem;"> (wraps 0-15 each repeat cycle)</label>
+        <button type="button" id="raw-preset-counter-btn">Load counter example (0x410)</button>
+        <label>Repeat period (s)<input id="raw-period" type="number" step="0.05" min="0.01" value="1"></label>
+        <div class="actions">
+          <button type="button" id="raw-send-btn">Send once</button>
+          <button type="button" id="raw-repeat-btn">Start repeating</button>
+        </div>
+        <p id="raw-repeat-status" style="margin:.4rem 0 0; color:var(--muted); font-size:.7rem;"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>DBC message</h2></div>
+      <div class="panel-body send-form">
+        <label>Message (from BMS_demo.dbc)<select id="dbc-message"></select></label>
+        <div class="signal-grid" id="dbc-signal-fields"></div>
+        <label>Repeat period (s)<input id="dbc-period" type="number" step="0.05" min="0.01" value="1"></label>
+        <div class="actions">
+          <button type="button" id="dbc-send-btn">Send once</button>
+          <button type="button" id="dbc-repeat-btn">Start repeating</button>
+        </div>
+        <p id="dbc-repeat-status" style="margin:.4rem 0 0; color:var(--muted); font-size:.7rem;"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-header"><h2>Send log</h2></div>
+    <div class="panel-body">
+      <ul id="can-log"></ul>
+    </div>
+  </section>
+</div>
+</div>
+
+<div class="tab-panel" id="tab-ao">
+<div class="sender-layout">
+  <div class="workspace">
+    <section class="panel">
+      <div class="panel-header"><h2>Device</h2></div>
+      <div class="panel-body">
+        <div class="config-grid">
+          <label class="field-wide">Device<input id="ao-device" type="text" value="{{ ao_defaults.device }}"></label>
+          <div class="field-wide pcan-scan-row">
+            <button type="button" id="ao-scan-btn">Scan NI-DAQmx devices</button>
+            <select id="ao-device-select" style="display:none;"></select>
+          </div>
+          <label class="field-wide">AO channel<input id="ao-channel" type="text" value="{{ ao_defaults.channel }}"></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Write voltage</h2></div>
+      <div class="panel-body send-form">
+        <label>Voltage (V, 0-3.3)<input id="ao-voltage" type="number" step="0.01" min="0" max="3.3" value="0"></label>
+        <div class="actions">
+          <button type="button" id="ao-write-btn">Write</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-header"><h2>Write log</h2></div>
+    <div class="panel-body">
+      <ul id="ao-log"></ul>
+    </div>
+  </section>
+</div>
+</div>
+
+<div class="tab-panel" id="tab-vcellpack">
+<div class="sender-layout">
+  <div class="workspace">
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Bus connection</h2>
+        <button type="button" id="vcp-refresh-btn">Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div class="config-grid">
+          <label class="field-wide">Interface
+            <select id="vcp-interface">
+              <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
+              <option value="pcan" {{ 'selected' if defaults.interface == 'pcan' else '' }}>pcan</option>
+            </select>
+          </label>
+          <label class="field-wide">Bitrate<input id="vcp-bitrate" type="number" step="1000" value="{{ defaults.bitrate }}"></label>
+        </div>
+        <p style="margin:.6rem 0 0; color:var(--muted); font-size:.7rem;">Sends the messages below on a fixed period, mirroring pcan/write_vCell_vPack_dbc.py. PCAN device IDs are locked to match that script and are not user-configurable.</p>
+        <table class="bus-message-table">
+          <thead><tr><th>Bus</th><th>Device ID</th><th>Messages sent</th><th>Present?</th></tr></thead>
+          <tbody>
+            {% for bus in vcellpack_buses %}
+            <tr><td>{{ bus.role }}</td><td>{{ bus.device_id }}</td><td>{{ bus.messages | join(', ') }}</td><td id="vcp-bus-status-{{ loop.index0 }}">-</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Simulation parameters</h2></div>
+      <div class="panel-body send-form">
+        <label>Pack current (A, negative = discharge)<input id="vcp-current" type="number" step="0.1" value="-70"></label>
+        <label>Nominal cell voltage (V, ±2% jitter per cell)<input id="vcp-cell-voltage" type="number" step="0.01" value="3.7"></label>
+        <label>Send period (s)<input id="vcp-period" type="number" step="0.05" min="0.01" value="0.2"></label>
+        <div class="actions">
+          <button type="button" id="vcp-start-btn">Start</button>
+          <button type="button" id="vcp-stop-btn" disabled>Stop</button>
+        </div>
+        <p id="vcp-status" style="margin:.4rem 0 0; color:var(--muted); font-size:.7rem;"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-header"><h2>Log</h2></div>
+    <div class="panel-body">
+      <ul id="vcp-log"></ul>
+    </div>
+  </section>
+</div>
+</div>
 
 <script>
 const CELL_COUNT = {{ cell_count }};
 const MODELS = {{ models | tojson }};
 const PARAMETER_SET_INFO = {{ parameter_set_info | tojson }};
 const DEFAULT_PARAMETER_SET = {{ defaults.parameter_set | tojson }};
+const CAN_MESSAGES = {{ can_messages | tojson }};
+const VCELLPACK_BUSES = {{ vcellpack_buses | tojson }};
 const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const applyCurrentBtn = document.getElementById('apply-current-btn');
 const errorBox = document.getElementById('error-box');
+
+wirePcanScan('cfg-scan-btn', 'cfg-device-select', 'cfg-channel', (message) => { errorBox.textContent = message; });
 const statusBadge = document.getElementById('status-badge');
 const modelSelect = document.getElementById('cfg-model');
 const paramSetSelect = document.getElementById('cfg-paramset');
@@ -286,6 +480,89 @@ async function postJSON(url, payload) {
     throw new Error(data.error || `request to ${url} failed`);
   }
   return data;
+}
+
+async function getJSON(url) {
+  const response = await fetch(url);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || `request to ${url} failed`);
+  }
+  return data;
+}
+
+function wirePcanScan(scanBtnId, selectId, channelInputId, onError) {
+  const scanBtn = document.getElementById(scanBtnId);
+  const select = document.getElementById(selectId);
+  const channelInput = document.getElementById(channelInputId);
+
+  scanBtn.addEventListener('click', async () => {
+    scanBtn.disabled = true;
+    try {
+      const { devices } = await getJSON('/api/can/devices');
+      select.innerHTML = '';
+      if (!devices.length) {
+        select.innerHTML = '<option value="">No PCAN devices found</option>';
+      } else {
+        devices.forEach((device) => {
+          const option = document.createElement('option');
+          option.value = device.channel;
+          const idLabel = device.device_id === null || device.device_id === undefined ? 'unknown' : device.device_id;
+          option.textContent = `${device.channel} (Device ID: ${idLabel})`;
+          select.appendChild(option);
+        });
+        channelInput.value = devices[0].channel;
+      }
+      select.style.display = '';
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      scanBtn.disabled = false;
+    }
+  });
+
+  select.addEventListener('change', () => {
+    if (select.value) channelInput.value = select.value;
+  });
+}
+
+function wireDaqScan(scanBtnId, selectId, deviceInputId, channelInputId, onError) {
+  const scanBtn = document.getElementById(scanBtnId);
+  const select = document.getElementById(selectId);
+  const deviceInput = document.getElementById(deviceInputId);
+  const channelInput = document.getElementById(channelInputId);
+  let devices = [];
+
+  scanBtn.addEventListener('click', async () => {
+    scanBtn.disabled = true;
+    try {
+      ({ devices } = await getJSON('/api/ao/devices'));
+      select.innerHTML = '';
+      if (!devices.length) {
+        select.innerHTML = '<option value="">No NI-DAQmx devices found</option>';
+      } else {
+        devices.forEach((device) => {
+          const option = document.createElement('option');
+          option.value = device.name;
+          option.textContent = `${device.name} (${device.product_type})`;
+          select.appendChild(option);
+        });
+        deviceInput.value = devices[0].name;
+        if (devices[0].ao_channels.length) channelInput.value = devices[0].ao_channels[0];
+      }
+      select.style.display = '';
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      scanBtn.disabled = false;
+    }
+  });
+
+  select.addEventListener('change', () => {
+    deviceInput.value = select.value;
+    const device = devices.find((d) => d.name === select.value);
+    if (device && device.ao_channels.length) channelInput.value = device.ao_channels[0];
+  });
 }
 
 startBtn.addEventListener('click', async () => {
@@ -481,6 +758,294 @@ async function poll() {
 buildCellRows();
 poll();
 setInterval(poll, 500);
+pollRepeatStatus();
+setInterval(pollRepeatStatus, 1000);
+
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+const dbcMessageSelect = document.getElementById('dbc-message');
+const dbcSignalFields = document.getElementById('dbc-signal-fields');
+const canLog = document.getElementById('can-log');
+
+function logCan(message, ok) {
+  const item = document.createElement('li');
+  item.className = ok ? 'log-ok' : 'log-error';
+  item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  canLog.insertBefore(item, canLog.firstChild);
+}
+
+function canConnectionFields() {
+  return {
+    interface: document.getElementById('can-interface').value,
+    channel: document.getElementById('can-channel').value,
+    bitrate: parseInt(document.getElementById('can-bitrate').value, 10),
+  };
+}
+
+wirePcanScan('can-scan-btn', 'can-device-select', 'can-channel', (message) => logCan(message, false));
+
+function buildDbcMessageOptions() {
+  CAN_MESSAGES.forEach((message) => {
+    const option = document.createElement('option');
+    option.value = message.name;
+    option.textContent = `${message.name} (0x${message.frame_id.toString(16)}, from ${message.sender})`;
+    dbcMessageSelect.appendChild(option);
+  });
+  dbcMessageSelect.addEventListener('change', renderDbcSignalFields);
+  renderDbcSignalFields();
+}
+
+function renderDbcSignalFields() {
+  dbcSignalFields.innerHTML = '';
+  const message = CAN_MESSAGES.find((entry) => entry.name === dbcMessageSelect.value);
+  if (!message) return;
+  message.signals.forEach((signal) => {
+    const label = document.createElement('label');
+    label.textContent = `${signal.name}${signal.unit ? ' (' + signal.unit + ')' : ''}`;
+    let field;
+    if (signal.choices) {
+      field = document.createElement('select');
+      signal.choices.forEach((choice) => {
+        const option = document.createElement('option');
+        option.value = choice.value;
+        option.textContent = `${choice.label} (${choice.value})`;
+        field.appendChild(option);
+      });
+    } else {
+      field = document.createElement('input');
+      field.type = 'number';
+      field.step = 'any';
+      if (signal.minimum !== null) field.min = signal.minimum;
+      if (signal.maximum !== null) field.max = signal.maximum;
+      field.value = signal.default;
+    }
+    field.dataset.signal = signal.name;
+    label.appendChild(field);
+    dbcSignalFields.appendChild(label);
+  });
+}
+
+function buildRawMessageBody() {
+  const dataText = document.getElementById('raw-data').value.trim();
+  const data = dataText ? dataText.split(/\s+/).map((byte) => parseInt(byte, 16)) : [];
+  const counterEnabled = document.getElementById('raw-counter-enabled').checked;
+  return {
+    ...canConnectionFields(),
+    mode: 'raw',
+    arbitration_id: document.getElementById('raw-id').value.trim(),
+    data,
+    extended: document.getElementById('raw-extended').checked,
+    counter_byte_index: counterEnabled ? parseInt(document.getElementById('raw-counter-index').value, 10) : null,
+  };
+}
+
+function buildDbcMessageBody() {
+  const signals = {};
+  dbcSignalFields.querySelectorAll('[data-signal]').forEach((field) => {
+    signals[field.dataset.signal] = parseFloat(field.value);
+  });
+  return {
+    ...canConnectionFields(),
+    mode: 'dbc',
+    message: dbcMessageSelect.value,
+    signals,
+  };
+}
+
+document.getElementById('raw-preset-counter-btn').addEventListener('click', () => {
+  document.getElementById('raw-id').value = '0x410';
+  document.getElementById('raw-data').value = '50 C3 00 00 C4 09 00 00';
+  document.getElementById('raw-extended').checked = false;
+  document.getElementById('raw-counter-enabled').checked = true;
+  document.getElementById('raw-counter-index').value = 6;
+});
+
+document.getElementById('raw-send-btn').addEventListener('click', async () => {
+  try {
+    const result = await postJSON('/api/can/send', buildRawMessageBody());
+    logCan(`Sent: ${result.sent}`, true);
+  } catch (error) {
+    logCan(error.message, false);
+  }
+});
+
+document.getElementById('dbc-send-btn').addEventListener('click', async () => {
+  try {
+    const result = await postJSON('/api/can/send', buildDbcMessageBody());
+    logCan(`Sent: ${result.sent}`, true);
+  } catch (error) {
+    logCan(error.message, false);
+  }
+});
+
+async function pollRepeatStatus() {
+  const rawBtn = document.getElementById('raw-repeat-btn');
+  const dbcBtn = document.getElementById('dbc-repeat-btn');
+  const rawStatus = document.getElementById('raw-repeat-status');
+  const dbcStatus = document.getElementById('dbc-repeat-status');
+  try {
+    const status = await getJSON('/api/can/repeat/status');
+    const rawRunning = status.running && status.mode === 'raw';
+    const dbcRunning = status.running && status.mode === 'dbc';
+    rawBtn.textContent = rawRunning ? 'Stop repeating' : 'Start repeating';
+    dbcBtn.textContent = dbcRunning ? 'Stop repeating' : 'Start repeating';
+    rawBtn.disabled = status.running && !rawRunning;
+    dbcBtn.disabled = status.running && !dbcRunning;
+    rawStatus.textContent = rawRunning ? `Repeating… sent ${status.count}` : (status.mode === 'raw' && status.error ? `Stopped: ${status.error}` : '');
+    dbcStatus.textContent = dbcRunning ? `Repeating… sent ${status.count}` : (status.mode === 'dbc' && status.error ? `Stopped: ${status.error}` : '');
+  } catch (error) {
+    // ignore transient poll failures
+  }
+}
+
+document.getElementById('raw-repeat-btn').addEventListener('click', async (event) => {
+  try {
+    if (event.target.textContent === 'Start repeating') {
+      await postJSON('/api/can/repeat/start', {
+        ...buildRawMessageBody(),
+        period: parseFloat(document.getElementById('raw-period').value),
+      });
+      logCan('Started repeating raw message', true);
+    } else {
+      await postJSON('/api/can/repeat/stop', {});
+      logCan('Stopped repeating send', true);
+    }
+  } catch (error) {
+    logCan(error.message, false);
+  }
+  pollRepeatStatus();
+});
+
+document.getElementById('dbc-repeat-btn').addEventListener('click', async (event) => {
+  try {
+    if (event.target.textContent === 'Start repeating') {
+      await postJSON('/api/can/repeat/start', {
+        ...buildDbcMessageBody(),
+        period: parseFloat(document.getElementById('dbc-period').value),
+      });
+      logCan('Started repeating DBC message', true);
+    } else {
+      await postJSON('/api/can/repeat/stop', {});
+      logCan('Stopped repeating send', true);
+    }
+  } catch (error) {
+    logCan(error.message, false);
+  }
+  pollRepeatStatus();
+});
+
+buildDbcMessageOptions();
+
+const aoLog = document.getElementById('ao-log');
+
+function logAo(message, ok) {
+  const item = document.createElement('li');
+  item.className = ok ? 'log-ok' : 'log-error';
+  item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  aoLog.insertBefore(item, aoLog.firstChild);
+}
+
+wireDaqScan('ao-scan-btn', 'ao-device-select', 'ao-device', 'ao-channel', (message) => logAo(message, false));
+
+document.getElementById('ao-write-btn').addEventListener('click', async () => {
+  try {
+    const result = await postJSON('/api/ao/write', {
+      device: document.getElementById('ao-device').value,
+      channel: document.getElementById('ao-channel').value,
+      voltage: parseFloat(document.getElementById('ao-voltage').value),
+    });
+    logAo(`Wrote ${result.voltage} V to ${result.channel}`, true);
+  } catch (error) {
+    logAo(error.message, false);
+  }
+});
+
+const vcpLog = document.getElementById('vcp-log');
+const vcpStartBtn = document.getElementById('vcp-start-btn');
+const vcpStopBtn = document.getElementById('vcp-stop-btn');
+const vcpStatus = document.getElementById('vcp-status');
+
+function logVcp(message, ok) {
+  const item = document.createElement('li');
+  item.className = ok ? 'log-ok' : 'log-error';
+  item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  vcpLog.insertBefore(item, vcpLog.firstChild);
+}
+
+vcpStartBtn.addEventListener('click', async () => {
+  try {
+    await postJSON('/api/vcellpack/start', {
+      interface: document.getElementById('vcp-interface').value,
+      bitrate: parseInt(document.getElementById('vcp-bitrate').value, 10),
+      pack_current_a: parseFloat(document.getElementById('vcp-current').value),
+      cell_voltage_v: parseFloat(document.getElementById('vcp-cell-voltage').value),
+      period: parseFloat(document.getElementById('vcp-period').value),
+    });
+    logVcp('Started cell/pack sim', true);
+  } catch (error) {
+    logVcp(error.message, false);
+  }
+  pollVcpStatus();
+});
+
+vcpStopBtn.addEventListener('click', async () => {
+  try {
+    await postJSON('/api/vcellpack/stop', {});
+    logVcp('Stopped cell/pack sim', true);
+  } catch (error) {
+    logVcp(error.message, false);
+  }
+  pollVcpStatus();
+});
+
+async function pollVcpStatus() {
+  try {
+    const status = await getJSON('/api/vcellpack/status');
+    vcpStartBtn.disabled = status.running;
+    vcpStopBtn.disabled = !status.running;
+    document.querySelectorAll('#tab-vcellpack .config-grid input, #tab-vcellpack .config-grid select, #vcp-current, #vcp-cell-voltage, #vcp-period').forEach((el) => { el.disabled = status.running; });
+    vcpStatus.textContent = status.running ? `Running… sent ${status.count}` : (status.error ? `Stopped: ${status.error}` : '');
+  } catch (error) {
+    // ignore transient poll failures
+  }
+}
+
+pollVcpStatus();
+setInterval(pollVcpStatus, 1000);
+
+const vcpRefreshBtn = document.getElementById('vcp-refresh-btn');
+
+vcpRefreshBtn.addEventListener('click', async () => {
+  vcpRefreshBtn.disabled = true;
+  VCELLPACK_BUSES.forEach((bus, i) => {
+    document.getElementById(`vcp-bus-status-${i}`).textContent = 'checking…';
+  });
+  try {
+    const { devices } = await getJSON('/api/can/devices');
+    VCELLPACK_BUSES.forEach((bus, i) => {
+      const found = devices.find((device) => device.device_id === bus.device_id);
+      const cell = document.getElementById(`vcp-bus-status-${i}`);
+      cell.className = found ? 'bus-status-ok' : 'bus-status-missing';
+      cell.textContent = found ? `Found (${found.channel})` : 'Not found';
+    });
+    logVcp(`Scanned PCAN devices: ${devices.length} found`, true);
+  } catch (error) {
+    VCELLPACK_BUSES.forEach((bus, i) => {
+      document.getElementById(`vcp-bus-status-${i}`).textContent = '?';
+    });
+    logVcp(error.message, false);
+  } finally {
+    vcpRefreshBtn.disabled = false;
+  }
+});
 </script>
 </body>
+
 </html>

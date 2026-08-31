@@ -1,0 +1,9 @@
+# Top-level deps for the PyBOP calibration workflow.
+# pybamm pinned to match the root requirements.txt so simulation results are
+# consistent across the hardware demo and the calibration workflow.
+# numpy/scipy/pybop pinned to the versions resolved in this repo's venv to
+# avoid pip-compile backtracking through unrelated historical releases.
+pybamm==26.8.0.0
+pybop==26.3
+numpy==2.3.5
+scipy==1.18.1

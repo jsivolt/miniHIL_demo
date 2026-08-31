@@ -75,7 +75,7 @@ DEFAULT_PARAMS = {
     "seed": 0,
     "interface": "virtual",
     "channel": "PCAN_USBBUS1",
-    "bitrate": 500000,
+    "bitrate": 1000000,
 }
 
 
