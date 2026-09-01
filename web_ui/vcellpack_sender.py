@@ -78,12 +78,24 @@ class VCellVPackSender:
         self._thread = None
         self._count = 0
         self._error = None
+        # Live-adjustable while running; guarded by _lock so _run always sees a consistent value.
+        self._pack_current_a = 0.0
+        self._cell_voltage_v = 0.0
+        self._period = 0.2
 
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
 
     def get_status(self):
-        return {"running": self.is_running(), "count": self._count, "error": self._error}
+        with self._lock:
+            return {
+                "running": self.is_running(),
+                "count": self._count,
+                "error": self._error,
+                "pack_current_a": self._pack_current_a,
+                "cell_voltage_v": self._cell_voltage_v,
+                "period": self._period,
+            }
 
     def start(self, interface, bitrate, pack_current_a, cell_voltage_v, period):
         with self._lock:
@@ -93,11 +105,14 @@ class VCellVPackSender:
                 raise ValueError("period must be greater than 0")
             self._count = 0
             self._error = None
+            self._pack_current_a = pack_current_a
+            self._cell_voltage_v = cell_voltage_v
+            self._period = period
             self._stop_event = threading.Event()
             stop_event = self._stop_event
             self._thread = threading.Thread(
                 target=self._run,
-                args=(interface, bitrate, pack_current_a, cell_voltage_v, period, stop_event),
+                args=(interface, bitrate, stop_event),
                 daemon=True,
             )
             self._thread.start()
@@ -107,7 +122,21 @@ class VCellVPackSender:
             if self._stop_event:
                 self._stop_event.set()
 
-    def _run(self, interface, bitrate, pack_current_a, cell_voltage_v, period, stop_event):
+    def update(self, pack_current_a=None, cell_voltage_v=None, period=None):
+        """Change current/voltage/period on the fly without stopping the sender thread."""
+        with self._lock:
+            if not self.is_running():
+                raise RuntimeError("cell/pack sim is not running")
+            if period is not None:
+                if period <= 0:
+                    raise ValueError("period must be greater than 0")
+                self._period = period
+            if pack_current_a is not None:
+                self._pack_current_a = pack_current_a
+            if cell_voltage_v is not None:
+                self._cell_voltage_v = cell_voltage_v
+
+    def _run(self, interface, bitrate, stop_event):
         db = _database()
         current_message_def = db.get_message_by_name("vPack_Current")
         voltage_message_def = db.get_message_by_name("vPack_Voltage")
@@ -138,6 +167,11 @@ class VCellVPackSender:
             counter = 0
             cell_voltage_counter = 0
             while not stop_event.is_set():
+                with self._lock:
+                    pack_current_a = self._pack_current_a
+                    cell_voltage_v = self._cell_voltage_v
+                    period = self._period
+
                 if di_task is None:
                     current_a = 0.0
                 else:
@@ -180,7 +214,10 @@ class VCellVPackSender:
                 ))
                 pack_bus.send(can.Message(
                     arbitration_id=voltage_message_def.frame_id,
-                    data=voltage_message_def.encode({"Pack1VoltageSim": pack_voltage}),
+                    data=voltage_message_def.encode({
+                        "Pack1VoltageSim": pack_voltage,
+                        "BusVoltage_mV": pack_voltage,
+                    }),
                     is_extended_id=voltage_message_def.is_extended_frame,
                 ))
                 self._count += 2

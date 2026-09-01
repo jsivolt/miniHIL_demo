@@ -87,7 +87,11 @@ def main():
                     "Status": 0,
                 },
             )
-            send_message(pack_bus, voltage_message_def, {"Pack1VoltageSim": pack_voltage})
+            send_message(
+                pack_bus,
+                voltage_message_def,
+                {"Pack1VoltageSim": pack_voltage, "BusVoltage_mV": pack_voltage},
+            )
             alive_counter = (alive_counter + 1) % 0x10
             cell_voltage_counter = (cell_voltage_counter + 1) % 256
             time.sleep(0.2)

@@ -5,3 +5,6 @@ cantools==43.0.0
 numpy==2.5.2
 pybamm==26.8.0.0
 flask==3.1.2
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+httpx==0.28.1  # used by fastapi.testclient.TestClient (dev/tests) and fastapi_app/client_example.py

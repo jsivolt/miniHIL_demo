@@ -385,6 +385,7 @@
         <div class="actions">
           <button type="button" id="vcp-start-btn">Start</button>
           <button type="button" id="vcp-stop-btn" disabled>Stop</button>
+          <button type="button" id="vcp-update-btn" disabled>Update while running</button>
         </div>
         <p id="vcp-status" style="margin:.4rem 0 0; color:var(--muted); font-size:.7rem;"></p>
       </div>
@@ -970,6 +971,7 @@ document.getElementById('ao-write-btn').addEventListener('click', async () => {
 const vcpLog = document.getElementById('vcp-log');
 const vcpStartBtn = document.getElementById('vcp-start-btn');
 const vcpStopBtn = document.getElementById('vcp-stop-btn');
+const vcpUpdateBtn = document.getElementById('vcp-update-btn');
 const vcpStatus = document.getElementById('vcp-status');
 
 function logVcp(message, ok) {
@@ -1005,12 +1007,27 @@ vcpStopBtn.addEventListener('click', async () => {
   pollVcpStatus();
 });
 
+vcpUpdateBtn.addEventListener('click', async () => {
+  try {
+    await postJSON('/api/vcellpack/update', {
+      pack_current_a: parseFloat(document.getElementById('vcp-current').value),
+      cell_voltage_v: parseFloat(document.getElementById('vcp-cell-voltage').value),
+      period: parseFloat(document.getElementById('vcp-period').value),
+    });
+    logVcp('Updated current/voltage while running', true);
+  } catch (error) {
+    logVcp(error.message, false);
+  }
+  pollVcpStatus();
+});
+
 async function pollVcpStatus() {
   try {
     const status = await getJSON('/api/vcellpack/status');
     vcpStartBtn.disabled = status.running;
     vcpStopBtn.disabled = !status.running;
-    document.querySelectorAll('#tab-vcellpack .config-grid input, #tab-vcellpack .config-grid select, #vcp-current, #vcp-cell-voltage, #vcp-period').forEach((el) => { el.disabled = status.running; });
+    vcpUpdateBtn.disabled = !status.running;
+    document.querySelectorAll('#tab-vcellpack .config-grid input, #tab-vcellpack .config-grid select').forEach((el) => { el.disabled = status.running; });
     vcpStatus.textContent = status.running ? `Running… sent ${status.count}` : (status.error ? `Stopped: ${status.error}` : '');
   } catch (error) {
     // ignore transient poll failures

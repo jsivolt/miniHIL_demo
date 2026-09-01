@@ -183,6 +183,21 @@ def api_vcellpack_start():
     return jsonify({"ok": True})
 
 
+@app.route("/api/vcellpack/update", methods=["POST"])
+def api_vcellpack_update():
+    body = request.get_json(silent=True) or {}
+    try:
+        pack_current_a = float(body["pack_current_a"]) if "pack_current_a" in body else None
+        cell_voltage_v = float(body["cell_voltage_v"]) if "cell_voltage_v" in body else None
+        period = float(body["period"]) if "period" in body else None
+        vcellpack_sender.sender.update(pack_current_a, cell_voltage_v, period)
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 409
+    except (KeyError, TypeError, ValueError) as error:
+        return jsonify({"ok": False, "error": f"invalid parameters: {error}"}), 400
+    return jsonify({"ok": True})
+
+
 @app.route("/api/vcellpack/stop", methods=["POST"])
 def api_vcellpack_stop():
     vcellpack_sender.sender.stop()
