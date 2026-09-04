@@ -63,6 +63,18 @@ def encode_dbc_message(message_name, signal_values):
     return message_def.frame_id, data, message_def.is_extended_frame
 
 
+def decode_message(arbitration_id, data):
+    """Best-effort decode of a raw frame against BMS_demo.dbc; returns (message_name, signals) or (None, None)."""
+    try:
+        message_def = _database().get_message_by_frame_id(arbitration_id)
+        signals = _database().decode_message(arbitration_id, data, decode_choices=False)
+    except Exception:
+        # unknown frame id, wrong data length (cantools DecodeError), or any other decode
+        # failure - fall back to showing the frame as raw hex instead of crashing the caller
+        return None, None
+    return message_def.name, signals
+
+
 def list_pcan_devices():
     """Detect available PCAN channels along with each one's configured device ID."""
     devices = []

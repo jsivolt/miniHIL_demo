@@ -46,6 +46,21 @@
   .bus-message-table th { color: var(--muted); font-weight: 650; font-size: .68rem; text-transform: uppercase; }
   .bus-message-table td.bus-status-ok { color: var(--green); font-weight: 650; }
   .bus-message-table td.bus-status-missing { color: var(--red); font-weight: 650; }
+  .view-switch { display: inline-flex; padding: 2px; background: #e8edf1; border-radius: 5px; }
+  .view-switch button { min-height: 28px; padding: .25rem .65rem; color: #53606b; background: transparent; font-size: .7rem; }
+  .view-switch button.active { color: #fff; background: var(--blue); }
+  .rx-view { display: none; }
+  .rx-view.active { display: block; }
+  .battery-values-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+  .battery-value-primary { padding: 1rem; }
+  .battery-value-primary + .battery-value-primary { border-left: 1px solid var(--line); }
+  .battery-value-label { display: block; margin-bottom: .3rem; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
+  .battery-value-number { font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .rx-cell-values { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); }
+  .rx-cell-value { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; min-width: 0; padding: .75rem 1rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .rx-cell-value:nth-child(4n) { border-right: 0; }
+  .rx-cell-value-label { color: var(--muted); font-size: .7rem; }
+  .rx-cell-value-number { font-size: .9rem; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
   @media (max-width: 900px) { .sender-layout { grid-template-columns: 1fr; } }
   .workspace { min-width: 0; display: grid; gap: 1rem; align-content: start; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 1px 2px rgba(23, 32, 42, .06); }
@@ -56,6 +71,8 @@
   .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .65rem; }
   .config-grid label { display: block; min-width: 0; margin: 0; font-size: .74rem; color: var(--muted); }
   .config-grid .field-wide { grid-column: 1 / -1; }
+  #tab-can-receiver .config-grid > label:not(.field-wide) { display: flex; flex-direction: column; }
+  #tab-can-receiver .config-grid > label:not(.field-wide) input { margin-top: auto; }
   #model-note { display: none; grid-column: 1 / -1; margin: -.35rem 0 0; color: #8a6100; font-size: .7rem; }
   #model-note:not(:empty) { display: block; }
   #paramset-note { grid-column: 1 / -1; margin: -.45rem 0 0; color: var(--muted); font-size: .7rem; }
@@ -130,6 +147,9 @@
     .chart-controls { grid-template-columns: 1fr auto; }
     #cell-checkboxes { grid-column: 1 / -1; grid-row: 2; max-height: 76px; }
     .cell-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .rx-cell-values { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
+    .rx-cell-value:nth-child(4n) { border-right: 1px solid var(--line); }
+    .rx-cell-value:nth-child(2n) { border-right: 0; }
     .chart-canvas-wrap { height: 280px; }
   }
   @media (max-width: 420px) {
@@ -148,6 +168,7 @@
 <nav class="tab-nav">
   <button type="button" class="tab-btn active" data-tab="tab-simulator">Battery Simulator</button>
   <button type="button" class="tab-btn" data-tab="tab-can-sender">CAN Sender</button>
+  <button type="button" class="tab-btn" data-tab="tab-can-receiver">CAN Receiver</button>
   <button type="button" class="tab-btn" data-tab="tab-ao">NI 6212 Analog Output</button>
   <button type="button" class="tab-btn" data-tab="tab-vcellpack">Cell/Pack Sim</button>
 </nav>
@@ -309,6 +330,82 @@
 </div>
 </div>
 
+<div class="tab-panel" id="tab-can-receiver">
+<div class="sender-layout">
+  <div class="workspace">
+    <section class="panel">
+      <div class="panel-header"><h2>Bus connection</h2></div>
+      <div class="panel-body">
+        <div class="config-grid">
+          <label class="field-wide">Interface
+            <select id="rx-interface">
+              <option value="virtual" {{ 'selected' if defaults.interface == 'virtual' else '' }}>virtual (no hardware)</option>
+              <option value="pcan" selected>pcan</option>
+            </select>
+          </label>
+          <label>PCAN device ID<input id="rx-device-id" type="number" step="1" value="0"></label>
+          <label>Channel (used when interface isn't pcan, or device ID is blank)<input id="rx-channel" type="text" value="{{ defaults.channel }}"></label>
+          <div class="field-wide pcan-scan-row">
+            <button type="button" id="rx-scan-btn">Scan PCAN devices</button>
+            <select id="rx-device-select" style="display:none;"></select>
+          </div>
+          <label class="field-wide">Bitrate<input id="rx-bitrate" type="number" step="1000" value="500000"></label>
+        </div>
+        <p style="margin:.6rem 0 0; color:var(--muted); font-size:.7rem;">Decodes incoming frames against BMS_demo.dbc when the arbitration ID matches a known message; unknown frames are shown as raw hex. PCAN device ID takes priority over channel when interface is "pcan".</p>
+        <div class="actions">
+          <button type="button" id="rx-start-btn">Start listening</button>
+          <button type="button" id="rx-stop-btn" disabled>Stop</button>
+        </div>
+        <p id="rx-status" style="margin:.4rem 0 0; color:var(--muted); font-size:.7rem;"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2 id="rx-view-title">Received messages</h2>
+      <div class="view-switch" role="group" aria-label="CAN receiver display">
+        <button type="button" class="active" data-rx-view="rx-messages-view">Messages</button>
+        <button type="button" data-rx-view="rx-battery-view">Battery values</button>
+      </div>
+    </div>
+    <div class="rx-view active" id="rx-messages-view">
+      <div class="panel-body">
+        <table class="bus-message-table">
+          <thead><tr><th>Time</th><th>ID</th><th>DLC</th><th>Data</th><th>Message</th><th>Signals</th></tr></thead>
+          <tbody id="rx-log-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="rx-view" id="rx-battery-view">
+      <div class="panel-body" style="display:flex; align-items:flex-end; gap:.65rem; flex-wrap:wrap; border-bottom:1px solid var(--line);">
+        <label style="flex:0 0 auto; min-width:180px; margin:0;">BMS control command
+          <select id="rx-control-command">
+            <option value="0">NOP</option>
+            <option value="1">Enable</option>
+            <option value="2">Disable</option>
+            <option value="3">ClearFault</option>
+          </select>
+        </label>
+        <button type="button" id="rx-control-send-btn">Send BMS_ControlCommand</button>
+        <p id="rx-control-status" style="flex-basis:100%; margin:0; color:var(--muted); font-size:.7rem;"></p>
+      </div>
+      <div class="battery-values-summary">
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack voltage</span>
+          <span class="battery-value-number" id="rx-pack-voltage">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Current</span>
+          <span class="battery-value-number" id="rx-pack-current">-</span>
+        </div>
+      </div>
+      <div class="rx-cell-values" id="rx-cell-values"></div>
+    </div>
+  </section>
+</div>
+</div>
+
 <div class="tab-panel" id="tab-ao">
 <div class="sender-layout">
   <div class="workspace">
@@ -393,9 +490,25 @@
   </div>
 
   <section class="panel">
-    <div class="panel-header"><h2>Log</h2></div>
-    <div class="panel-body">
-      <ul id="vcp-log"></ul>
+    <div class="panel-header">
+      <h2 id="vcp-view-title">Log</h2>
+      <div class="view-switch" role="group" aria-label="Cell/Pack sim display">
+        <button type="button" class="active" data-vcp-view="vcp-log-view">Log</button>
+        <button type="button" data-vcp-view="vcp-pack-view">Pack bus messages</button>
+      </div>
+    </div>
+    <div class="rx-view active" id="vcp-log-view">
+      <div class="panel-body">
+        <ul id="vcp-log"></ul>
+      </div>
+    </div>
+    <div class="rx-view" id="vcp-pack-view">
+      <div class="panel-body">
+        <table class="bus-message-table">
+          <thead><tr><th>Time</th><th>ID</th><th>DLC</th><th>Data</th><th>Message</th><th>Signals</th></tr></thead>
+          <tbody id="vcp-pack-log-body"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 </div>
@@ -944,6 +1057,159 @@ document.getElementById('dbc-repeat-btn').addEventListener('click', async (event
 
 buildDbcMessageOptions();
 
+const rxStartBtn = document.getElementById('rx-start-btn');
+const rxStopBtn = document.getElementById('rx-stop-btn');
+const rxStatus = document.getElementById('rx-status');
+const rxLogBody = document.getElementById('rx-log-body');
+const rxCellValues = document.getElementById('rx-cell-values');
+const rxBatteryValues = {
+  cells: Array(16).fill(null),
+  packVoltage: null,
+  current: null,
+};
+
+for (let cellIndex = 0; cellIndex < 16; cellIndex += 1) {
+  const item = document.createElement('div');
+  item.className = 'rx-cell-value';
+  item.innerHTML = `<span class="rx-cell-value-label">Cell ${cellIndex + 1}</span><span class="rx-cell-value-number" id="rx-cell-${cellIndex + 1}">-</span>`;
+  rxCellValues.appendChild(item);
+}
+
+document.querySelectorAll('[data-rx-view]').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('[data-rx-view]').forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+    document.querySelectorAll('.rx-view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.rxView));
+    document.getElementById('rx-view-title').textContent = button.dataset.rxView === 'rx-battery-view' ? 'Battery values' : 'Received messages';
+  });
+});
+
+wirePcanScan('rx-scan-btn', 'rx-device-select', 'rx-channel', (message) => { rxStatus.textContent = message; });
+document.getElementById('rx-device-select').addEventListener('change', (event) => {
+  const match = event.target.selectedOptions[0].textContent.match(/Device ID: (-?\d+)/);
+  if (match) document.getElementById('rx-device-id').value = match[1];
+});
+
+function rxConnectionFields() {
+  const deviceIdText = document.getElementById('rx-device-id').value.trim();
+  return {
+    interface: document.getElementById('rx-interface').value,
+    channel: document.getElementById('rx-channel').value,
+    bitrate: parseInt(document.getElementById('rx-bitrate').value, 10),
+    device_id: deviceIdText === '' ? null : parseInt(deviceIdText, 10),
+  };
+}
+
+function renderRxLog(messages) {
+  rxLogBody.innerHTML = '';
+  messages.forEach((entry) => {
+    const row = document.createElement('tr');
+    const time = new Date(entry.timestamp * 1000).toLocaleTimeString();
+    const idText = `0x${entry.arbitration_id.toString(16)}${entry.is_extended_id ? ' (ext)' : ''}`;
+    const signalsText = entry.signals
+      ? Object.entries(entry.signals).map(([name, value]) => `${name}=${value}`).join(', ')
+      : '';
+    row.innerHTML = `<td>${time}</td><td>${idText}</td><td>${entry.dlc}</td><td>${entry.data}</td><td>${entry.message || '-'}</td><td>${signalsText}</td>`;
+    rxLogBody.appendChild(row);
+  });
+}
+
+function updateRxBatteryValues(messages) {
+  const updatedCells = new Set();
+  let packVoltageUpdated = false;
+  let currentUpdated = false;
+
+  messages.forEach((entry) => {
+    if (!entry.signals) return;
+    const isCellVoltageFrame = entry.arbitration_id >= 0x310 && entry.arbitration_id <= 0x313;
+    Object.entries(entry.signals).forEach(([name, rawValue]) => {
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) return;
+
+      const cellMatch = name.match(/^Cell0?(\d+)Voltage$/i);
+      if (cellMatch && isCellVoltageFrame) {
+        const cellIndex = Number(cellMatch[1]) - 1;
+        if (cellIndex >= 0 && cellIndex < 16 && !updatedCells.has(cellIndex)) {
+          rxBatteryValues.cells[cellIndex] = value;
+          updatedCells.add(cellIndex);
+        }
+      } else if (!packVoltageUpdated && ['Pack1VoltageSim', 'BusVoltage_mV', 'Pack1Voltage'].includes(name)) {
+        rxBatteryValues.packVoltage = value;
+        packVoltageUpdated = true;
+      } else if (!currentUpdated && ['Pack1Current_mA', 'PackCurrent_mA'].includes(name)) {
+        rxBatteryValues.current = value / 1000;
+        currentUpdated = true;
+      } else if (!currentUpdated && ['Pack1Current', 'PackCurrent'].includes(name)) {
+        rxBatteryValues.current = value;
+        currentUpdated = true;
+      }
+    });
+  });
+
+  rxBatteryValues.cells.forEach((value, cellIndex) => {
+    document.getElementById(`rx-cell-${cellIndex + 1}`).textContent = value === null ? '-' : `${value.toFixed(3)} V`;
+  });
+  document.getElementById('rx-pack-voltage').textContent = rxBatteryValues.packVoltage === null ? '-' : `${rxBatteryValues.packVoltage.toFixed(2)} V`;
+  document.getElementById('rx-pack-current').textContent = rxBatteryValues.current === null ? '-' : `${rxBatteryValues.current.toFixed(2)} A`;
+}
+
+function resetRxBatteryValues() {
+  rxBatteryValues.cells.fill(null);
+  rxBatteryValues.packVoltage = null;
+  rxBatteryValues.current = null;
+  updateRxBatteryValues([]);
+}
+
+document.getElementById('rx-control-send-btn').addEventListener('click', async () => {
+  const status = document.getElementById('rx-control-status');
+  try {
+    const controlCommand = parseInt(document.getElementById('rx-control-command').value, 10);
+    const result = await postJSON('/api/can/receive/send', {
+      mode: 'dbc',
+      message: 'BMS_ControlCommand',
+      signals: { ControlCommand: controlCommand },
+    });
+    status.textContent = `Sent: ${result.sent}`;
+  } catch (error) {
+    status.textContent = error.message;
+  }
+});
+
+rxStartBtn.addEventListener('click', async () => {
+  try {
+    await postJSON('/api/can/receive/start', rxConnectionFields());
+    resetRxBatteryValues();
+  } catch (error) {
+    rxStatus.textContent = error.message;
+  }
+  pollRxStatus();
+});
+
+rxStopBtn.addEventListener('click', async () => {
+  try {
+    await postJSON('/api/can/receive/stop', {});
+  } catch (error) {
+    rxStatus.textContent = error.message;
+  }
+  pollRxStatus();
+});
+
+async function pollRxStatus() {
+  try {
+    const status = await getJSON('/api/can/receive/status');
+    rxStartBtn.disabled = status.running;
+    rxStopBtn.disabled = !status.running;
+    document.querySelectorAll('#tab-can-receiver .config-grid input, #tab-can-receiver .config-grid select').forEach((el) => { el.disabled = status.running; });
+    rxStatus.textContent = status.running ? `Listening… received ${status.count}` : (status.error ? `Stopped: ${status.error}` : '');
+    renderRxLog(status.messages);
+    updateRxBatteryValues(status.messages);
+  } catch (error) {
+    // ignore transient poll failures
+  }
+}
+
+pollRxStatus();
+setInterval(pollRxStatus, 500);
+
 const aoLog = document.getElementById('ao-log');
 
 function logAo(message, ok) {
@@ -973,6 +1239,29 @@ const vcpStartBtn = document.getElementById('vcp-start-btn');
 const vcpStopBtn = document.getElementById('vcp-stop-btn');
 const vcpUpdateBtn = document.getElementById('vcp-update-btn');
 const vcpStatus = document.getElementById('vcp-status');
+const vcpPackLogBody = document.getElementById('vcp-pack-log-body');
+
+document.querySelectorAll('[data-vcp-view]').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('[data-vcp-view]').forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+    document.querySelectorAll('#tab-vcellpack .rx-view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.vcpView));
+    document.getElementById('vcp-view-title').textContent = button.dataset.vcpView === 'vcp-pack-view' ? 'Pack bus messages' : 'Log';
+  });
+});
+
+function renderVcpPackLog(messages) {
+  vcpPackLogBody.innerHTML = '';
+  messages.forEach((entry) => {
+    const row = document.createElement('tr');
+    const time = new Date(entry.timestamp * 1000).toLocaleTimeString();
+    const idText = `0x${entry.arbitration_id.toString(16)}${entry.is_extended_id ? ' (ext)' : ''}`;
+    const signalsText = entry.signals
+      ? Object.entries(entry.signals).map(([name, value]) => `${name}=${value}`).join(', ')
+      : '';
+    row.innerHTML = `<td>${time}</td><td>${idText}</td><td>${entry.dlc}</td><td>${entry.data}</td><td>${entry.message || '-'}</td><td>${signalsText}</td>`;
+    vcpPackLogBody.appendChild(row);
+  });
+}
 
 function logVcp(message, ok) {
   const item = document.createElement('li');
@@ -1029,6 +1318,7 @@ async function pollVcpStatus() {
     vcpUpdateBtn.disabled = !status.running;
     document.querySelectorAll('#tab-vcellpack .config-grid input, #tab-vcellpack .config-grid select').forEach((el) => { el.disabled = status.running; });
     vcpStatus.textContent = status.running ? `Running… sent ${status.count}` : (status.error ? `Stopped: ${status.error}` : '');
+    renderVcpPackLog(status.pack_messages || []);
   } catch (error) {
     // ignore transient poll failures
   }

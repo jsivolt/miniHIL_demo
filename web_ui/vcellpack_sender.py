@@ -9,9 +9,11 @@ Uses the same external DBC as write_vCell_vPack_dbc.py (not the repo's pcan/BMS_
 which is an older revision that lacks the vPack_Current/vPack_Voltage messages and uses
 unpadded Cell1Voltage-style signal names instead of Cell01Voltage).
 """
+import collections
 import pathlib
 import random
 import threading
+import time
 
 import can
 import cantools
@@ -37,6 +39,7 @@ CELL_VOLTAGE_MESSAGES = [
     ("vAFE_CellVoltage_13_16", ["Cell13Voltage", "Cell14Voltage", "Cell15Voltage", "Cell16Voltage"]),
 ]
 CELL_COUNT = 16
+MAX_PACK_LOG = 100
 
 _db = None
 
@@ -67,6 +70,17 @@ def _open_bus(interface, bitrate, device_id, virtual_channel):
     return can.Bus(interface=interface, channel=virtual_channel, bitrate=bitrate)
 
 
+def decode_message(arbitration_id, data):
+    """Best-effort decode of a raw frame against this module's external/newer DBC; returns
+    (message_name, signals) or (None, None)."""
+    try:
+        message_def = _database().get_message_by_frame_id(arbitration_id)
+        signals = _database().decode_message(arbitration_id, data, decode_choices=False)
+    except Exception:
+        return None, None
+    return message_def.name, signals
+
+
 class VCellVPackSender:
     """Owns a background thread that repeatedly sends jittered cell voltages plus the
     derived pack current/voltage messages across two (possibly identical) buses until
@@ -82,6 +96,8 @@ class VCellVPackSender:
         self._pack_current_a = 0.0
         self._cell_voltage_v = 0.0
         self._period = 0.2
+        # Rolling log of frames sent on the Pack bus, for the UI's "Pack bus messages" view.
+        self._pack_log = collections.deque(maxlen=MAX_PACK_LOG)
 
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
@@ -95,7 +111,24 @@ class VCellVPackSender:
                 "pack_current_a": self._pack_current_a,
                 "cell_voltage_v": self._cell_voltage_v,
                 "period": self._period,
+                "pack_messages": list(self._pack_log),
             }
+
+    def _log_pack_message(self, message):
+        """Record a frame just sent on the Pack bus, decoded the same way an incoming frame
+        would be on the CAN Receiver tab, for display in the UI."""
+        message_name, signals = decode_message(message.arbitration_id, message.data)
+        entry = {
+            "timestamp": time.time(),
+            "arbitration_id": message.arbitration_id,
+            "is_extended_id": message.is_extended_id,
+            "dlc": message.dlc,
+            "data": message.data.hex(" "),
+            "message": message_name,
+            "signals": signals,
+        }
+        with self._lock:
+            self._pack_log.appendleft(entry)
 
     def start(self, interface, bitrate, pack_current_a, cell_voltage_v, period):
         with self._lock:
@@ -108,6 +141,7 @@ class VCellVPackSender:
             self._pack_current_a = pack_current_a
             self._cell_voltage_v = cell_voltage_v
             self._period = period
+            self._pack_log.clear()
             self._stop_event = threading.Event()
             stop_event = self._stop_event
             self._thread = threading.Thread(
@@ -202,7 +236,7 @@ class VCellVPackSender:
                     self._count += 1
 
                 pack_voltage = sum(jittered_voltages)
-                pack_bus.send(can.Message(
+                current_message = can.Message(
                     arbitration_id=current_message_def.frame_id,
                     data=current_message_def.encode({
                         "Pack1Current_mA": current_a * 1000,
@@ -211,15 +245,19 @@ class VCellVPackSender:
                         "Status": 0,
                     }),
                     is_extended_id=current_message_def.is_extended_frame,
-                ))
-                pack_bus.send(can.Message(
+                )
+                voltage_message = can.Message(
                     arbitration_id=voltage_message_def.frame_id,
                     data=voltage_message_def.encode({
                         "Pack1VoltageSim": pack_voltage,
                         "BusVoltage_mV": pack_voltage,
                     }),
                     is_extended_id=voltage_message_def.is_extended_frame,
-                ))
+                )
+                pack_bus.send(current_message)
+                pack_bus.send(voltage_message)
+                self._log_pack_message(current_message)
+                self._log_pack_message(voltage_message)
                 self._count += 2
                 counter = (counter + 1) % 0x10
                 cell_voltage_counter = (cell_voltage_counter + 1) % 256

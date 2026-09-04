@@ -17,6 +17,7 @@ from battery_sim_core import (  # noqa: E402
     model_catalog,
     simulator,
 )
+import can_receiver  # noqa: E402
 import can_sender  # noqa: E402
 import ni6212_ao  # noqa: E402
 import vcellpack_sender  # noqa: E402
@@ -164,6 +165,54 @@ def api_can_repeat_stop():
 @app.route("/api/can/repeat/status")
 def api_can_repeat_status():
     return jsonify(can_sender.repeat_sender.get_status())
+
+
+@app.route("/api/can/receive/start", methods=["POST"])
+def api_can_receive_start():
+    body = request.get_json(silent=True) or {}
+    try:
+        interface = str(body.get("interface", DEFAULT_PARAMS["interface"]))
+        channel = str(body.get("channel", DEFAULT_PARAMS["channel"]))
+        bitrate = int(body.get("bitrate", can_receiver.DEFAULT_BITRATE))
+        device_id = body.get("device_id", can_receiver.DEFAULT_DEVICE_ID)
+        device_id = int(device_id) if device_id is not None else None
+        can_receiver.receiver.start(interface, channel, bitrate, device_id)
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 409
+    except (KeyError, TypeError, ValueError) as error:
+        return jsonify({"ok": False, "error": f"invalid parameters: {error}"}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/can/receive/stop", methods=["POST"])
+def api_can_receive_stop():
+    can_receiver.receiver.stop()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/can/receive/status")
+def api_can_receive_status():
+    return jsonify(can_receiver.receiver.get_status())
+
+
+@app.route("/api/can/receive/send", methods=["POST"])
+def api_can_receive_send():
+    """Send on the CAN Receiver tab's already-open bus, avoiding a second PCAN handle on the same channel."""
+    body = request.get_json(silent=True) or {}
+    try:
+        _, _, _, arbitration_id, data, is_extended_id = _parse_can_message(body)
+    except (KeyError, TypeError, ValueError) as error:
+        return jsonify({"ok": False, "error": f"invalid parameters: {error}"}), 400
+    except Exception as error:  # cantools encode errors (missing/out-of-range signal, etc.)
+        return jsonify({"ok": False, "error": f"encode failed: {error}"}), 400
+
+    try:
+        message = can_receiver.receiver.send(arbitration_id, data, is_extended_id)
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 409
+    except Exception as error:  # python-can bus/transport errors
+        return jsonify({"ok": False, "error": f"send failed: {error}"}), 500
+    return jsonify({"ok": True, "sent": str(message)})
 
 
 @app.route("/api/vcellpack/start", methods=["POST"])
