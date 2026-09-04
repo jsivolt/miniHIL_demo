@@ -53,7 +53,8 @@
   .rx-view.active { display: block; }
   .battery-values-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
   .battery-value-primary { padding: 1rem; }
-  .battery-value-primary + .battery-value-primary { border-left: 1px solid var(--line); }
+  .battery-value-primary:nth-child(even) { border-left: 1px solid var(--line); }
+  .battery-value-primary:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .battery-value-label { display: block; margin-bottom: .3rem; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
   .battery-value-number { font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; }
   .rx-cell-values { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); }
@@ -399,6 +400,30 @@
           <span class="battery-value-label">Current</span>
           <span class="battery-value-number" id="rx-pack-current">-</span>
         </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">BMS state</span>
+          <span class="battery-value-number" id="rx-bms-state">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack 1 temperature</span>
+          <span class="battery-value-number" id="rx-pack-1-temperature">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack 2 temperature</span>
+          <span class="battery-value-number" id="rx-pack-2-temperature">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack 3 temperature</span>
+          <span class="battery-value-number" id="rx-pack-3-temperature">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack 1 power</span>
+          <span class="battery-value-number" id="rx-pack-1-power">-</span>
+        </div>
+        <div class="battery-value-primary">
+          <span class="battery-value-label">Pack 1 SOC</span>
+          <span class="battery-value-number" id="rx-pack-1-soc">-</span>
+        </div>
       </div>
       <div class="rx-cell-values" id="rx-cell-values"></div>
     </div>
@@ -495,6 +520,7 @@
       <div class="view-switch" role="group" aria-label="Cell/Pack sim display">
         <button type="button" class="active" data-vcp-view="vcp-log-view">Log</button>
         <button type="button" data-vcp-view="vcp-pack-view">Pack bus messages</button>
+        <button type="button" data-vcp-view="vcp-cell-view">Cell bus messages</button>
       </div>
     </div>
     <div class="rx-view active" id="vcp-log-view">
@@ -507,6 +533,14 @@
         <table class="bus-message-table">
           <thead><tr><th>Time</th><th>ID</th><th>DLC</th><th>Data</th><th>Message</th><th>Signals</th></tr></thead>
           <tbody id="vcp-pack-log-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="rx-view" id="vcp-cell-view">
+      <div class="panel-body">
+        <table class="bus-message-table">
+          <thead><tr><th>Time</th><th>ID</th><th>DLC</th><th>Data</th><th>Message</th><th>Signals</th></tr></thead>
+          <tbody id="vcp-cell-log-body"></tbody>
         </table>
       </div>
     </div>
@@ -1066,6 +1100,10 @@ const rxBatteryValues = {
   cells: Array(16).fill(null),
   packVoltage: null,
   current: null,
+  bmsState: null,
+  packTemperatures: Array(3).fill(null),
+  pack1Power: null,
+  pack1Soc: null,
 };
 
 for (let cellIndex = 0; cellIndex < 16; cellIndex += 1) {
@@ -1117,13 +1155,42 @@ function updateRxBatteryValues(messages) {
   const updatedCells = new Set();
   let packVoltageUpdated = false;
   let currentUpdated = false;
+  let bmsStateUpdated = false;
+  const updatedPackTemperatures = new Set();
+  let pack1PowerUpdated = false;
+  let pack1SocUpdated = false;
 
   messages.forEach((entry) => {
     if (!entry.signals) return;
     const isCellVoltageFrame = entry.arbitration_id >= 0x310 && entry.arbitration_id <= 0x313;
     Object.entries(entry.signals).forEach(([name, rawValue]) => {
+      if (!bmsStateUpdated && ['BmsState', 'BMS_State'].includes(name)) {
+        rxBatteryValues.bmsState = String(rawValue);
+        bmsStateUpdated = true;
+        return;
+      }
+
+      const temperatureMatch = name.match(/^Pack([123])_?Temperature$/i);
+      if (temperatureMatch) {
+        const packIndex = Number(temperatureMatch[1]) - 1;
+        const temperature = Number(rawValue);
+        if (Number.isFinite(temperature) && !updatedPackTemperatures.has(packIndex)) {
+          rxBatteryValues.packTemperatures[packIndex] = temperature;
+          updatedPackTemperatures.add(packIndex);
+        }
+        return;
+      }
+
       const value = Number(rawValue);
       if (!Number.isFinite(value)) return;
+
+      if (!pack1PowerUpdated && ['Pack1Power', 'Pack1_Power'].includes(name)) {
+        rxBatteryValues.pack1Power = value;
+        pack1PowerUpdated = true;
+      } else if (!pack1SocUpdated && ['Pack1SOC', 'Pack1_SOC'].includes(name)) {
+        rxBatteryValues.pack1Soc = value;
+        pack1SocUpdated = true;
+      }
 
       const cellMatch = name.match(/^Cell0?(\d+)Voltage$/i);
       if (cellMatch && isCellVoltageFrame) {
@@ -1150,12 +1217,22 @@ function updateRxBatteryValues(messages) {
   });
   document.getElementById('rx-pack-voltage').textContent = rxBatteryValues.packVoltage === null ? '-' : `${rxBatteryValues.packVoltage.toFixed(2)} V`;
   document.getElementById('rx-pack-current').textContent = rxBatteryValues.current === null ? '-' : `${rxBatteryValues.current.toFixed(2)} A`;
+  document.getElementById('rx-bms-state').textContent = rxBatteryValues.bmsState === null ? '-' : rxBatteryValues.bmsState;
+  rxBatteryValues.packTemperatures.forEach((value, packIndex) => {
+    document.getElementById(`rx-pack-${packIndex + 1}-temperature`).textContent = value === null ? '-' : `${value.toFixed(1)} °C`;
+  });
+  document.getElementById('rx-pack-1-power').textContent = rxBatteryValues.pack1Power === null ? '-' : `${rxBatteryValues.pack1Power.toFixed(0)} W`;
+  document.getElementById('rx-pack-1-soc').textContent = rxBatteryValues.pack1Soc === null ? '-' : `${rxBatteryValues.pack1Soc.toFixed(1)} %`;
 }
 
 function resetRxBatteryValues() {
   rxBatteryValues.cells.fill(null);
   rxBatteryValues.packVoltage = null;
   rxBatteryValues.current = null;
+  rxBatteryValues.bmsState = null;
+  rxBatteryValues.packTemperatures.fill(null);
+  rxBatteryValues.pack1Power = null;
+  rxBatteryValues.pack1Soc = null;
   updateRxBatteryValues([]);
 }
 
@@ -1240,17 +1317,20 @@ const vcpStopBtn = document.getElementById('vcp-stop-btn');
 const vcpUpdateBtn = document.getElementById('vcp-update-btn');
 const vcpStatus = document.getElementById('vcp-status');
 const vcpPackLogBody = document.getElementById('vcp-pack-log-body');
+const vcpCellLogBody = document.getElementById('vcp-cell-log-body');
+
+const VCP_VIEW_TITLES = { 'vcp-pack-view': 'Pack bus messages', 'vcp-cell-view': 'Cell bus messages' };
 
 document.querySelectorAll('[data-vcp-view]').forEach((button) => {
   button.addEventListener('click', () => {
     document.querySelectorAll('[data-vcp-view]').forEach((candidate) => candidate.classList.toggle('active', candidate === button));
     document.querySelectorAll('#tab-vcellpack .rx-view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.vcpView));
-    document.getElementById('vcp-view-title').textContent = button.dataset.vcpView === 'vcp-pack-view' ? 'Pack bus messages' : 'Log';
+    document.getElementById('vcp-view-title').textContent = VCP_VIEW_TITLES[button.dataset.vcpView] || 'Log';
   });
 });
 
-function renderVcpPackLog(messages) {
-  vcpPackLogBody.innerHTML = '';
+function renderVcpBusLog(tbody, messages) {
+  tbody.innerHTML = '';
   messages.forEach((entry) => {
     const row = document.createElement('tr');
     const time = new Date(entry.timestamp * 1000).toLocaleTimeString();
@@ -1259,7 +1339,7 @@ function renderVcpPackLog(messages) {
       ? Object.entries(entry.signals).map(([name, value]) => `${name}=${value}`).join(', ')
       : '';
     row.innerHTML = `<td>${time}</td><td>${idText}</td><td>${entry.dlc}</td><td>${entry.data}</td><td>${entry.message || '-'}</td><td>${signalsText}</td>`;
-    vcpPackLogBody.appendChild(row);
+    tbody.appendChild(row);
   });
 }
 
@@ -1318,7 +1398,8 @@ async function pollVcpStatus() {
     vcpUpdateBtn.disabled = !status.running;
     document.querySelectorAll('#tab-vcellpack .config-grid input, #tab-vcellpack .config-grid select').forEach((el) => { el.disabled = status.running; });
     vcpStatus.textContent = status.running ? `Running… sent ${status.count}` : (status.error ? `Stopped: ${status.error}` : '');
-    renderVcpPackLog(status.pack_messages || []);
+    renderVcpBusLog(vcpPackLogBody, status.pack_messages || []);
+    renderVcpBusLog(vcpCellLogBody, status.cell_messages || []);
   } catch (error) {
     // ignore transient poll failures
   }

@@ -96,8 +96,9 @@ class VCellVPackSender:
         self._pack_current_a = 0.0
         self._cell_voltage_v = 0.0
         self._period = 0.2
-        # Rolling log of frames sent on the Pack bus, for the UI's "Pack bus messages" view.
+        # Rolling logs of frames sent on each bus, for the UI's "Pack/Cell bus messages" views.
         self._pack_log = collections.deque(maxlen=MAX_PACK_LOG)
+        self._cell_log = collections.deque(maxlen=MAX_PACK_LOG)
 
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
@@ -112,10 +113,11 @@ class VCellVPackSender:
                 "cell_voltage_v": self._cell_voltage_v,
                 "period": self._period,
                 "pack_messages": list(self._pack_log),
+                "cell_messages": list(self._cell_log),
             }
 
-    def _log_pack_message(self, message):
-        """Record a frame just sent on the Pack bus, decoded the same way an incoming frame
+    def _log_message(self, log, message):
+        """Record a frame just sent on a bus, decoded the same way an incoming frame
         would be on the CAN Receiver tab, for display in the UI."""
         message_name, signals = decode_message(message.arbitration_id, message.data)
         entry = {
@@ -128,7 +130,7 @@ class VCellVPackSender:
             "signals": signals,
         }
         with self._lock:
-            self._pack_log.appendleft(entry)
+            log.appendleft(entry)
 
     def start(self, interface, bitrate, pack_current_a, cell_voltage_v, period):
         with self._lock:
@@ -142,6 +144,7 @@ class VCellVPackSender:
             self._cell_voltage_v = cell_voltage_v
             self._period = period
             self._pack_log.clear()
+            self._cell_log.clear()
             self._stop_event = threading.Event()
             stop_event = self._stop_event
             self._thread = threading.Thread(
@@ -218,21 +221,25 @@ class VCellVPackSender:
                         di_task = None
                         current_a = 0.0
 
-                cell_bus.send(can.Message(
+                counter_message = can.Message(
                     arbitration_id=CELL_VOLTAGE_COUNTER_ID,
                     data=[cell_voltage_counter, 0, 0, 0, 0, 0, 0, 0],
                     is_extended_id=False,
-                ))
+                )
+                cell_bus.send(counter_message)
+                self._log_message(self._cell_log, counter_message)
                 self._count += 1
 
                 jittered_voltages = [cell_voltage_v * random.uniform(0.98, 1.02) for _ in range(CELL_COUNT)]
                 for i, (message_def, signal_names) in enumerate(cell_message_defs):
                     values = dict(zip(signal_names, jittered_voltages[i * 4:(i + 1) * 4]))
-                    cell_bus.send(can.Message(
+                    cell_message = can.Message(
                         arbitration_id=message_def.frame_id,
                         data=message_def.encode(values),
                         is_extended_id=message_def.is_extended_frame,
-                    ))
+                    )
+                    cell_bus.send(cell_message)
+                    self._log_message(self._cell_log, cell_message)
                     self._count += 1
 
                 pack_voltage = sum(jittered_voltages)
@@ -256,8 +263,8 @@ class VCellVPackSender:
                 )
                 pack_bus.send(current_message)
                 pack_bus.send(voltage_message)
-                self._log_pack_message(current_message)
-                self._log_pack_message(voltage_message)
+                self._log_message(self._pack_log, current_message)
+                self._log_message(self._pack_log, voltage_message)
                 self._count += 2
                 counter = (counter + 1) % 0x10
                 cell_voltage_counter = (cell_voltage_counter + 1) % 256
