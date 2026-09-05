@@ -19,6 +19,7 @@ from battery_sim_core import (  # noqa: E402
 )
 import can_receiver  # noqa: E402
 import can_sender  # noqa: E402
+import current_source  # noqa: E402
 import ni6212_ao  # noqa: E402
 import vcellpack_sender  # noqa: E402
 
@@ -56,9 +57,6 @@ def api_start():
             initial_soc=float(body.get("initial_soc", DEFAULT_PARAMS["initial_soc"])),
             period=float(body.get("period", DEFAULT_PARAMS["period"])),
             seed=int(body.get("seed", DEFAULT_PARAMS["seed"])),
-            interface=str(body.get("interface", DEFAULT_PARAMS["interface"])),
-            channel=str(body.get("channel", DEFAULT_PARAMS["channel"])),
-            bitrate=int(body.get("bitrate", DEFAULT_PARAMS["bitrate"])),
         )
     except RuntimeError as error:
         return jsonify({"ok": False, "error": str(error)}), 409
@@ -70,6 +68,7 @@ def api_start():
 @app.route("/api/stop", methods=["POST"])
 def api_stop():
     simulator.stop()
+    current_source.source.stop()
     return jsonify({"ok": True})
 
 
@@ -82,6 +81,28 @@ def api_current():
         return jsonify({"ok": False, "error": f"invalid current: {error}"}), 400
     simulator.set_current(current_a)
     return jsonify({"ok": True})
+
+
+@app.route("/api/current-source/start", methods=["POST"])
+def api_current_source_start():
+    try:
+        current_source.source.start()
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 409
+    except Exception as error:  # python-can driver/transport errors
+        return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/current-source/stop", methods=["POST"])
+def api_current_source_stop():
+    current_source.source.stop()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/current-source/status")
+def api_current_source_status():
+    return jsonify(current_source.source.get_status())
 
 
 @app.route("/api/can/devices")

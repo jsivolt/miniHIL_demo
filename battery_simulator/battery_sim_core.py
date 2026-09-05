@@ -34,6 +34,11 @@ SOC_SPREAD = 0.02
 MIN_STEP_S = 0.01
 CURRENT_INPUT_NAME = "Current function [A]"
 
+# The simulator's own cell-voltage CAN output has no UI controls - always virtual, no PCAN hardware.
+SIM_BUS_INTERFACE = "virtual"
+SIM_BUS_CHANNEL = "battery-sim-cellv"
+SIM_BUS_BITRATE = 1000000
+
 RC2_R_SCALE = 0.5  # ECM_Example only defines one RC branch, so derive a slower second one from it
 RC2_C_SCALE = 10.0
 CONTACT_RESISTANCE_OHM = 0.01  # lithium-ion sets ship with 0 Ohm, which would leave no spread to scale
@@ -328,7 +333,7 @@ class BatterySimulator:
             step_cells(cells, self._params["period"], self._current_a)  # first step compiles, too slow for the loop
             self._state["snapshot"] = snapshot(cells, 0.0, 0, self._current_a)
 
-            bus = can.Bus(interface=self._params["interface"], channel=self._params["channel"], bitrate=self._params["bitrate"])
+            bus = can.Bus(interface=SIM_BUS_INTERFACE, channel=SIM_BUS_CHANNEL, bitrate=SIM_BUS_BITRATE)
             physics_thread = threading.Thread(target=self._physics_loop, args=(cells, stop_event), daemon=True)
             physics_thread.start()
             self._status = "running"

@@ -52,9 +52,30 @@ class CanReceiver:
         self._count = 0
         self._log = collections.deque(maxlen=MAX_LOG)
         self._bus = None
+        self._listeners = []
 
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
+
+    def add_listener(self, callback):
+        """Register a callback(entry) to receive every decoded frame, e.g. so another feature can
+        reuse this bus instead of opening a second handle on the same PCAN device."""
+        with self._lock:
+            self._listeners.append(callback)
+
+    def remove_listener(self, callback):
+        with self._lock:
+            if callback in self._listeners:
+                self._listeners.remove(callback)
+
+    def _notify(self, entry):
+        with self._lock:
+            listeners = list(self._listeners)
+        for callback in listeners:
+            try:
+                callback(entry)
+            except Exception:
+                pass  # a broken listener must not take down the receiver thread
 
     def send(self, arbitration_id, data, is_extended_id=False):
         """Send on the receiver's already-open bus instead of opening a second handle on the same channel."""
@@ -127,6 +148,7 @@ class CanReceiver:
                 with self._lock:
                     self._log.appendleft(entry)
                     self._count += 1
+                self._notify(entry)
         except Exception as error:
             self._error = str(error)
         finally:
