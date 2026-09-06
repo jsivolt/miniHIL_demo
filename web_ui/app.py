@@ -245,7 +245,10 @@ def api_vcellpack_start():
         pack_current_a = float(body.get("pack_current_a", -70.0))
         cell_voltage_v = float(body.get("cell_voltage_v", 3.7))
         period = float(body.get("period", 0.2))
-        vcellpack_sender.sender.start(interface, bitrate, pack_current_a, cell_voltage_v, period)
+        use_simulator_voltages = bool(body.get("use_simulator_voltages", False))
+        vcellpack_sender.sender.start(
+            interface, bitrate, pack_current_a, cell_voltage_v, period, use_simulator_voltages,
+        )
     except RuntimeError as error:
         return jsonify({"ok": False, "error": str(error)}), 409
     except (KeyError, TypeError, ValueError) as error:
@@ -260,7 +263,8 @@ def api_vcellpack_update():
         pack_current_a = float(body["pack_current_a"]) if "pack_current_a" in body else None
         cell_voltage_v = float(body["cell_voltage_v"]) if "cell_voltage_v" in body else None
         period = float(body["period"]) if "period" in body else None
-        vcellpack_sender.sender.update(pack_current_a, cell_voltage_v, period)
+        use_simulator_voltages = bool(body["use_simulator_voltages"]) if "use_simulator_voltages" in body else None
+        vcellpack_sender.sender.update(pack_current_a, cell_voltage_v, period, use_simulator_voltages)
     except RuntimeError as error:
         return jsonify({"ok": False, "error": str(error)}), 409
     except (KeyError, TypeError, ValueError) as error:

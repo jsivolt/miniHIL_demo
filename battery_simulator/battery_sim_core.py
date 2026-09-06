@@ -73,12 +73,12 @@ PARAMETER_SET_INFO = {
 DEFAULT_PARAMS = {
     "model": "thevenin_1rc",
     "parameter_set": "ECM_Example",
-    "current_a": 5.0,
-    "capacity_ah": 5.0,
-    "initial_soc": 0.9,
+    "current_a": 0.0,
+    "capacity_ah": 30.0,
+    "initial_soc": 0.5,
     "period": 0.1,
     "seed": 0,
-    "interface": "virtual",
+    "interface": "pcan",
     "channel": "PCAN_USBBUS1",
     "bitrate": 1000000,
 }
@@ -236,7 +236,7 @@ def read_soc(cell, solution):
 
 def step_cells(cells, dt, current_a):
     """Advance every live cell by dt seconds; cells that hit a cut-off hold their last voltage."""
-    inputs = {CURRENT_INPUT_NAME: current_a}
+    inputs = {CURRENT_INPUT_NAME: -current_a}  # flip to this module's convention: positive current_a charges
     for cell in cells:
         if cell["exhausted"]:
             continue
