@@ -20,6 +20,8 @@ import cantools
 import nidaqmx
 from nidaqmx.constants import LineGrouping
 
+from battery_sim_core import clamp, simulator
+
 DBC_PATH = pathlib.Path(r"C:\S32K344\workspace\BMS_demo\DBC\BMS_demo.dbc")
 
 # Matches pcan/write_vCell_vPack_dbc.py: forces pack current to 0 when both lines read LOW.
@@ -96,6 +98,7 @@ class VCellVPackSender:
         self._pack_current_a = 0.0
         self._cell_voltage_v = 0.0
         self._period = 0.2
+        self._use_simulator_voltages = False
         # Rolling logs of frames sent on each bus, for the UI's "Pack/Cell bus messages" views.
         self._pack_log = collections.deque(maxlen=MAX_PACK_LOG)
         self._cell_log = collections.deque(maxlen=MAX_PACK_LOG)
@@ -112,6 +115,7 @@ class VCellVPackSender:
                 "pack_current_a": self._pack_current_a,
                 "cell_voltage_v": self._cell_voltage_v,
                 "period": self._period,
+                "use_simulator_voltages": self._use_simulator_voltages,
                 "pack_messages": list(self._pack_log),
                 "cell_messages": list(self._cell_log),
             }
@@ -132,7 +136,7 @@ class VCellVPackSender:
         with self._lock:
             log.appendleft(entry)
 
-    def start(self, interface, bitrate, pack_current_a, cell_voltage_v, period):
+    def start(self, interface, bitrate, pack_current_a, cell_voltage_v, period, use_simulator_voltages=False):
         with self._lock:
             if self.is_running():
                 raise RuntimeError("cell/pack sim is already running - stop it first")
@@ -143,6 +147,7 @@ class VCellVPackSender:
             self._pack_current_a = pack_current_a
             self._cell_voltage_v = cell_voltage_v
             self._period = period
+            self._use_simulator_voltages = use_simulator_voltages
             self._pack_log.clear()
             self._cell_log.clear()
             self._stop_event = threading.Event()
@@ -159,7 +164,7 @@ class VCellVPackSender:
             if self._stop_event:
                 self._stop_event.set()
 
-    def update(self, pack_current_a=None, cell_voltage_v=None, period=None):
+    def update(self, pack_current_a=None, cell_voltage_v=None, period=None, use_simulator_voltages=None):
         """Change current/voltage/period on the fly without stopping the sender thread."""
         with self._lock:
             if not self.is_running():
@@ -172,6 +177,8 @@ class VCellVPackSender:
                 self._pack_current_a = pack_current_a
             if cell_voltage_v is not None:
                 self._cell_voltage_v = cell_voltage_v
+            if use_simulator_voltages is not None:
+                self._use_simulator_voltages = use_simulator_voltages
 
     def _run(self, interface, bitrate, stop_event):
         db = _database()
@@ -208,6 +215,7 @@ class VCellVPackSender:
                     pack_current_a = self._pack_current_a
                     cell_voltage_v = self._cell_voltage_v
                     period = self._period
+                    use_simulator_voltages = self._use_simulator_voltages
 
                 if di_task is None:
                     current_a = 0.0
@@ -230,7 +238,11 @@ class VCellVPackSender:
                 self._log_message(self._cell_log, counter_message)
                 self._count += 1
 
-                jittered_voltages = [cell_voltage_v * random.uniform(0.98, 1.02) for _ in range(CELL_COUNT)]
+                sim_snapshot = simulator.get_status()["snapshot"] if use_simulator_voltages else None
+                if sim_snapshot is not None:
+                    jittered_voltages = [clamp(v) for v in sim_snapshot["voltages"]]
+                else:
+                    jittered_voltages = [cell_voltage_v * random.uniform(0.98, 1.02) for _ in range(CELL_COUNT)]
                 for i, (message_def, signal_names) in enumerate(cell_message_defs):
                     values = dict(zip(signal_names, jittered_voltages[i * 4:(i + 1) * 4]))
                     cell_message = can.Message(

@@ -34,6 +34,11 @@ SOC_SPREAD = 0.02
 MIN_STEP_S = 0.01
 CURRENT_INPUT_NAME = "Current function [A]"
 
+# The simulator's own cell-voltage CAN output has no UI controls - always virtual, no PCAN hardware.
+SIM_BUS_INTERFACE = "virtual"
+SIM_BUS_CHANNEL = "battery-sim-cellv"
+SIM_BUS_BITRATE = 1000000
+
 RC2_R_SCALE = 0.5  # ECM_Example only defines one RC branch, so derive a slower second one from it
 RC2_C_SCALE = 10.0
 CONTACT_RESISTANCE_OHM = 0.01  # lithium-ion sets ship with 0 Ohm, which would leave no spread to scale
@@ -68,12 +73,12 @@ PARAMETER_SET_INFO = {
 DEFAULT_PARAMS = {
     "model": "thevenin_1rc",
     "parameter_set": "ECM_Example",
-    "current_a": 5.0,
-    "capacity_ah": 5.0,
-    "initial_soc": 0.9,
+    "current_a": 0.0,
+    "capacity_ah": 30.0,
+    "initial_soc": 0.5,
     "period": 0.1,
     "seed": 0,
-    "interface": "virtual",
+    "interface": "pcan",
     "channel": "PCAN_USBBUS1",
     "bitrate": 1000000,
 }
@@ -231,7 +236,7 @@ def read_soc(cell, solution):
 
 def step_cells(cells, dt, current_a):
     """Advance every live cell by dt seconds; cells that hit a cut-off hold their last voltage."""
-    inputs = {CURRENT_INPUT_NAME: current_a}
+    inputs = {CURRENT_INPUT_NAME: -current_a}  # flip to this module's convention: positive current_a charges
     for cell in cells:
         if cell["exhausted"]:
             continue
@@ -328,7 +333,7 @@ class BatterySimulator:
             step_cells(cells, self._params["period"], self._current_a)  # first step compiles, too slow for the loop
             self._state["snapshot"] = snapshot(cells, 0.0, 0, self._current_a)
 
-            bus = can.Bus(interface=self._params["interface"], channel=self._params["channel"], bitrate=self._params["bitrate"])
+            bus = can.Bus(interface=SIM_BUS_INTERFACE, channel=SIM_BUS_CHANNEL, bitrate=SIM_BUS_BITRATE)
             physics_thread = threading.Thread(target=self._physics_loop, args=(cells, stop_event), daemon=True)
             physics_thread.start()
             self._status = "running"
